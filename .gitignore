@@ -1,0 +1,15 @@
+.vercel
+.next
+node_modules
+.vscode
+.claude
+.env
+.env.local
+.env.*.local
+.env.vercel
+.env.production.vercel
+.env.production.live
+!.env.example
+memory
+TEMP_IMPLEMENTATION_PLAN.md
+*.tsbuildinfo

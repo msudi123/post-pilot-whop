@@ -1,0 +1,8 @@
+.env
+.env.local
+.env.*.local
+.env.production.live
+memory
+TEMP_IMPLEMENTATION_PLAN.md
+.claude
+.vscode
