@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type AppPage = "dashboard" | "generate" | "calendar" | "analytics" | "settings";
@@ -31,6 +32,15 @@ type ScheduledPost = {
   whop_post_url?: string | null;
   comment_count?: number | null;
   like_count?: number | null;
+};
+
+type DraftPost = {
+  title: string;
+  content: string;
+  scheduled_at?: string;
+  forum_id?: string;
+  draftId?: string | null;
+  free_regeneration_used?: boolean;
 };
 
 type ProductContext = {
@@ -236,20 +246,10 @@ const Settings = ({ className }: IconProps) => (
   </IconBase>
 );
 
-function getStoredWhopToken(companyId: string) {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(`postpilot_whop_access_token_${companyId}`);
-}
-
-function authHeaders(companyId: string): Record<string, string> {
-  const token = getStoredWhopToken(companyId);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function postAction<T = ActionResponse>(companyId: string, body: Record<string, unknown>) {
   const response = await fetch("/api/dashboard-action", {
     method: "POST",
-    headers: { ...API_HEADERS, ...authHeaders(companyId) },
+    headers: API_HEADERS,
     body: JSON.stringify({ companyId, ...body }),
   });
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -257,29 +257,6 @@ async function postAction<T = ActionResponse>(companyId: string, body: Record<st
     throw new Error(data.error || "Request failed");
   }
   return data;
-}
-
-function persistWhopSession(companyId: string, data: Record<string, unknown>) {
-  if (typeof window === "undefined") return;
-  const token = typeof data.access_token === "string" ? data.access_token : "";
-  const refresh = typeof data.refresh_token === "string" ? data.refresh_token : "";
-  const userId = typeof data.user_id === "string" ? data.user_id : "";
-  const username = typeof data.username === "string" ? data.username : "";
-  const name = typeof data.name === "string" ? data.name : "";
-  if (token) window.localStorage.setItem(`postpilot_whop_access_token_${companyId}`, token);
-  if (refresh) window.localStorage.setItem(`postpilot_whop_refresh_token_${companyId}`, refresh);
-  if (userId) window.localStorage.setItem(`postpilot_whop_user_id_${companyId}`, userId);
-  if (username) window.localStorage.setItem(`postpilot_whop_username_${companyId}`, username);
-  if (name) window.localStorage.setItem(`postpilot_whop_name_${companyId}`, name);
-}
-
-function clearWhopSession(companyId: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(`postpilot_whop_access_token_${companyId}`);
-  window.localStorage.removeItem(`postpilot_whop_refresh_token_${companyId}`);
-  window.localStorage.removeItem(`postpilot_whop_user_id_${companyId}`);
-  window.localStorage.removeItem(`postpilot_whop_username_${companyId}`);
-  window.localStorage.removeItem(`postpilot_whop_name_${companyId}`);
 }
 
 function formatDateTime(value?: string | null) {
@@ -394,8 +371,7 @@ function getBusinessName(context: ProductContext, auth: WhopUserAuth) {
   return context.whop_company || auth.businessName || auth.name || auth.username || "your Whop business";
 }
 
-function inferOnboardingStep(connected: boolean, hasForum: boolean, hasBrand: boolean, hasContent: boolean): OnboardingStep {
-  if (!connected) return 1;
+function inferOnboardingStep(hasForum: boolean, hasBrand: boolean, hasContent: boolean): OnboardingStep {
   if (!hasForum) return 2;
   if (!hasBrand) return 3;
   if (!hasContent) return 4;
@@ -591,20 +567,21 @@ function PostPilotLogo() {
   );
 }
 
-export default function DashboardClient({ companyId }: { companyId: string }) {
+export default function DashboardClient({ companyId, verifiedUserId }: { companyId: string; verifiedUserId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [activePage, setActivePage] = useState<AppPage>("dashboard");
+  const [showContextModal, setShowContextModal] = useState(false);
   const [showOnboardingFlow, setShowOnboardingFlow] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>(1);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>(2);
   const [forums, setForums] = useState<Forum[]>([]);
   const [postableForums, setPostableForums] = useState<Forum[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [productContext, setProductContext] = useState<ProductContext>(() => normalizeContext());
   const [usage, setUsage] = useState<UsageSummary>(DEFAULT_USAGE);
-  const [whopUserAuth, setWhopUserAuth] = useState<WhopUserAuth>({ connected: false });
+  const [whopUserAuth, setWhopUserAuth] = useState<WhopUserAuth>({ connected: true, userId: verifiedUserId });
   const [selectedForumId, setSelectedForumId] = useState("");
   const [generateMode, setGenerateMode] = useState<GenerateMode>("single");
   const [selectedPostType, setSelectedPostType] = useState("");
@@ -616,9 +593,10 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
   const [prompt, setPrompt] = useState("");
   const [generatedTitle, setGeneratedTitle] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
-  const [draftPosts, setDraftPosts] = useState<Array<{ title: string; content: string; scheduled_at?: string; forum_id?: string; draftId?: string | null; free_regeneration_used?: boolean }>>([]);
+  const [draftPosts, setDraftPosts] = useState<DraftPost[]>([]);
   const [analyticsRows, setAnalyticsRows] = useState<AnalyticsRow[]>([]);
   const requestRef = useRef(0);
+  const onboardingWasAlreadyCompleteRef = useRef(false);
 
   const businessName = useMemo(() => getBusinessName(productContext, whopUserAuth), [productContext, whopUserAuth]);
   const availableForums = forums.length > 0 ? forums : postableForums;
@@ -626,11 +604,13 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     () => availableForums.find((forum) => getForumKey(forum) === selectedForumId) || availableForums[0],
     [availableForums, selectedForumId],
   );
-  const connectedWhop = whopUserAuth.connected;
   const hasSelectedForum = Boolean(selectedForumId || productContext.default_forum_id);
   const hasBrandSetup = Boolean(productContext.brand_voice && productContext.posting_goal && productContext.posting_frequency);
   const hasProductDetails = Boolean(productContext.whop_company || productContext.tagline || productContext.what_it_does);
-  const onboardingComplete = Boolean(productContext.onboarding_completed && connectedWhop && hasSelectedForum && hasProductDetails);
+  const onboardingComplete = Boolean(productContext.onboarding_completed);
+  const crucialContextMissing = !productContext.whop_products || !productContext.what_it_does || !productContext.who_its_for;
+  const shouldShowOnboardingLanding = !onboardingComplete && !showOnboardingFlow;
+  const shouldShowOnboardingFlow = !onboardingComplete && showOnboardingFlow;
   const scheduledOnly = scheduledPosts.filter((post) => post.status === "scheduled");
   const publishedOnly = scheduledPosts.filter((post) => post.status === "posted" || post.status === "published");
   const postsThisWeek = useMemo(() => {
@@ -684,13 +664,13 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     setError("");
     try {
       const response = await fetch(`/api/dashboard-data?companyId=${encodeURIComponent(companyId)}&ts=${Date.now()}`, {
-        headers: authHeaders(companyId),
         cache: "no-store",
       });
       const data = (await response.json()) as DashboardData & { error?: string };
       if (!response.ok || data.error) throw new Error(data.error || "Unable to load dashboard data");
       if (id !== requestRef.current) return;
       const normalized = normalizeContext(data.productContext);
+      if (normalized.onboarding_completed) onboardingWasAlreadyCompleteRef.current = true;
       const nextForums = data.forums || [];
       const nextPostable = data.postableForums || [];
       setForums(nextForums);
@@ -699,26 +679,28 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
       setProductContext(normalized);
       setUsage(data.usage || DEFAULT_USAGE);
       const identity = data.postingIdentity;
-      if (identity?.connected) {
-        setWhopUserAuth({
-          connected: true,
-          userId: identity.whop_user_id || (identity as any).whopUserId || undefined,
-          username: identity.whop_username || (identity as any).username || undefined,
-          name: identity.whop_name || (identity as any).name || undefined,
-          businessName: identity.whop_company_name || (identity as any).businessName || normalized.whop_company || undefined,
-        });
-      }
+      setWhopUserAuth({
+        connected: true,
+        userId: identity?.whop_user_id || verifiedUserId,
+        username: identity?.whop_username || undefined,
+        name: identity?.whop_name || undefined,
+        businessName: identity?.whop_company_name || normalized.whop_company || undefined,
+      });
       const defaultForum = normalized.default_forum_id || getForumKey(nextPostable[0] || nextForums[0] || {});
       setSelectedForumId(defaultForum);
       setPrompt((current) => current || buildSeedPrompt(normalized, nextPostable[0] || nextForums[0]));
-      setOnboardingStep(
-        inferOnboardingStep(
-          Boolean(identity?.connected),
-          Boolean(defaultForum),
-          Boolean(normalized.brand_voice && normalized.posting_goal && normalized.posting_frequency),
-          Boolean(normalized.whop_company || normalized.tagline || normalized.what_it_does),
-        ),
-      );
+      if (normalized.onboarding_completed) {
+        setShowOnboardingFlow(false);
+        setOnboardingStep(5);
+      } else {
+        setOnboardingStep(
+          inferOnboardingStep(
+            Boolean(defaultForum),
+            Boolean(normalized.brand_voice && normalized.posting_goal && normalized.posting_frequency),
+            Boolean(normalized.whop_company || normalized.tagline || normalized.what_it_does),
+          ),
+        );
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard");
     } finally {
@@ -726,32 +708,9 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     }
   }, [companyId]);
 
-  const loadWhopUserAuth = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/auth/whop/status?companyId=${encodeURIComponent(companyId)}`, {
-        headers: authHeaders(companyId),
-        cache: "no-store",
-      });
-      const data = await response.json();
-      if (response.ok && data.connected) {
-        setWhopUserAuth({
-          connected: true,
-          userId: data.user?.id,
-          username: data.user?.username,
-          name: data.user?.name,
-          businessName: data.user?.business_name,
-        });
-        if (data.access_token) persistWhopSession(companyId, data);
-      }
-    } catch {
-      // Connection status is best-effort; dashboard identity remains authoritative.
-    }
-  }, [companyId]);
-
   const loadAnalytics = useCallback(async () => {
     try {
       const response = await fetch(`/api/analytics?companyId=${encodeURIComponent(companyId)}&ts=${Date.now()}`, {
-        headers: authHeaders(companyId),
         cache: "no-store",
       });
       const data = await response.json();
@@ -765,15 +724,23 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
 
   useEffect(() => {
     loadDashboardData();
-    loadWhopUserAuth();
     loadAnalytics();
-  }, [loadAnalytics, loadDashboardData, loadWhopUserAuth]);
+  }, [loadAnalytics, loadDashboardData]);
 
   useEffect(() => {
     if (!prompt || prompt === dashboardPrompt) {
       setPrompt(dashboardPrompt);
     }
   }, [dashboardPrompt, prompt]);
+
+  useEffect(() => {
+    if (loading || !onboardingComplete) return;
+    if (!onboardingWasAlreadyCompleteRef.current) return;
+    if (!crucialContextMissing) return;
+    const key = `postpilot_ctx_modal_${companyId}`;
+    if (sessionStorage.getItem(key)) return;
+    setShowContextModal(true);
+  }, [loading, onboardingComplete, crucialContextMissing, companyId]);
 
   async function saveContext(overrides: Partial<ProductContext> = {}) {
     const payload = { ...productContext, ...overrides };
@@ -784,43 +751,6 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     const next = normalizeContext(data.productContext || payload);
     setProductContext(next);
     return next;
-  }
-
-  async function connectWhop() {
-    setBusy(true);
-    setError("");
-    try {
-      clearWhopSession(companyId);
-      await fetch("/api/auth/whop/logout", {
-        method: "POST",
-        headers: API_HEADERS,
-        body: JSON.stringify({ companyId }),
-      }).catch(() => null);
-      const returnTo = `${window.location.origin}/dashboard/${companyId}`;
-      window.location.href = `/api/auth/whop/start?companyId=${encodeURIComponent(companyId)}&returnTo=${encodeURIComponent(returnTo)}`;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function disconnectWhop() {
-    setBusy(true);
-    setError("");
-    try {
-      clearWhopSession(companyId);
-      await fetch("/api/auth/whop/logout", {
-        method: "POST",
-        headers: API_HEADERS,
-        body: JSON.stringify({ companyId }),
-      });
-      setWhopUserAuth({ connected: false });
-      setProductContext((current) => ({ ...current, onboarding_completed: false }));
-      setOnboardingStep(1);
-    } catch (disconnectError) {
-      setError(disconnectError instanceof Error ? disconnectError.message : "Unable to disconnect Whop");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function pullForums() {
@@ -834,7 +764,9 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
       setPostableForums(pulledForums);
       if (pulledForums[0] && !selectedForumId) setSelectedForumId(getForumKey(pulledForums[0]));
       setMessage(pulledForums.length ? "Forums pulled successfully." : "No postable forums were returned for this business.");
-      await loadDashboardData();
+      if (pulledForums.length === 0) {
+        await loadDashboardData();
+      }
     } catch (pullError) {
       setError(pullError instanceof Error ? pullError.message : "Unable to pull forums");
     } finally {
@@ -876,7 +808,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     try {
       const response = await fetch("/api/generate-post", {
         method: "POST",
-        headers: { ...API_HEADERS, ...authHeaders(companyId) },
+        headers: API_HEADERS,
         body: JSON.stringify({
           companyId,
           forumId: selectedForumId,
@@ -915,7 +847,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     try {
       const response = await fetch("/api/generate-schedule", {
         method: "POST",
-        headers: { ...API_HEADERS, ...authHeaders(companyId) },
+        headers: API_HEADERS,
         body: JSON.stringify({
           companyId,
           forumId: selectedForumId,
@@ -930,19 +862,77 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
       if (!response.ok || data.error) throw new Error(data.error || "Unable to generate posts");
       const posts = Array.isArray(data.posts) ? data.posts : Array.isArray(data.schedule) ? data.schedule : [];
       setDraftPosts(
-        posts.map((post: Record<string, string>, index: number) => ({
-          title: post.title || post.postType || `Community post ${index + 1}`,
-          content: post.content || post.post || "",
-          scheduled_at: toDateTimeLocalValue(post.scheduled_at || addDays(new Date(), index + 1).toISOString()),
+        posts.map((post: Record<string, unknown>, index: number) => ({
+          title: String(post.title || post.postType || `Community post ${index + 1}`),
+          content: String(post.content || post.post || ""),
+          scheduled_at: toDateTimeLocalValue(
+            typeof post.scheduled_at === "string" ? post.scheduled_at : addDays(new Date(), index + 1).toISOString()
+          ),
           forum_id: selectedForumId,
-          draftId: post.draftId || null,
-          free_regeneration_used: post.free_regeneration_used === 'true',
+          draftId: typeof post.draftId === "string" ? post.draftId : null,
+          free_regeneration_used: Boolean(post.free_regeneration_used),
         })),
       );
       setMessage(`${posts.length || count} posts generated. Schedule included posts when ready.`);
       if (data.usage) setUsage(data.usage);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : "Unable to generate posts");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regenerateDraft(index: number) {
+    const draft = draftPosts[index];
+    if (!draft?.draftId) {
+      setError("Generate a draft first before regenerating.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/regenerate-post", {
+        method: "POST",
+        headers: API_HEADERS,
+        body: JSON.stringify({
+          companyId,
+          draftId: draft.draftId,
+          title: draft.title,
+          content: draft.content,
+          topicHint:
+            generateMode === "single"
+              ? `${prompt}\n\nPost type: ${selectedPostType}`
+              : `${prompt}\n\nRegenerate this draft as a fresh variation for the same forum and business.`,
+        }),
+      });
+      const data = await response.json();
+      if (data.usage) setUsage(data.usage);
+      if (!response.ok || data.error) throw new Error(data.error || "Unable to regenerate post");
+
+      const nextDraft: DraftPost = {
+        ...draft,
+        title: data.draft?.title || data.title || draft.title,
+        content: data.draft?.content || data.content || draft.content,
+        draftId: data.draft?.id || draft.draftId,
+        free_regeneration_used: true,
+      };
+
+      setDraftPosts((current) => {
+        const next = [...current];
+        next[index] = nextDraft;
+        return next;
+      });
+
+      if (generateMode === "single" && index === 0) {
+        setGeneratedTitle(nextDraft.title);
+        setGeneratedContent(nextDraft.content);
+      }
+
+      setMessage(data.used_credit ? "Draft regenerated. 1 AI post credit was used." : "Draft regenerated. Your first regeneration for this draft was free.");
+    } catch (regenerateError) {
+      setError(regenerateError instanceof Error ? regenerateError.message : "Unable to regenerate post");
     } finally {
       setBusy(false);
     }
@@ -993,7 +983,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
       }));
       const response = await fetch("/api/schedule-batch", {
         method: "POST",
-        headers: { ...API_HEADERS, ...authHeaders(companyId) },
+        headers: API_HEADERS,
         body: JSON.stringify({ companyId, posts: batch }),
       });
       const data = await response.json();
@@ -1014,7 +1004,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     try {
       const response = await fetch(`/api/scheduled-posts/${encodeURIComponent(post.id)}?companyId=${encodeURIComponent(companyId)}`, {
         method: "DELETE",
-        headers: { ...API_HEADERS, ...authHeaders(companyId) },
+        headers: API_HEADERS,
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.error) throw new Error(data.error || "Unable to delete scheduled post");
@@ -1032,9 +1022,11 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     setError("");
     try {
       await saveContext({
-        default_forum_id: selectedForumId,
+        default_forum_id: selectedForumId || productContext.default_forum_id,
         onboarding_completed: true,
       });
+      setShowOnboardingFlow(false);
+      setOnboardingStep(5);
       setActivePage("dashboard");
       setMessage("Onboarding complete. Welcome to PostPilot.");
     } catch (saveError) {
@@ -1063,7 +1055,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     try {
       const response = await fetch("/api/improve-product-context", {
         method: "POST",
-        headers: { ...API_HEADERS, ...authHeaders(companyId) },
+        headers: API_HEADERS,
         body: JSON.stringify({
           companyId,
           field,
@@ -1105,7 +1097,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     );
   }
 
-  if (!onboardingComplete && !showOnboardingFlow) {
+  if (shouldShowOnboardingLanding) {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[420px_1fr]">
@@ -1119,7 +1111,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
               <Button
                 className="mt-8 w-full py-4 text-base"
                 onClick={() => {
-                  setOnboardingStep(inferOnboardingStep(connectedWhop, hasSelectedForum, hasBrandSetup, hasProductDetails));
+                  setOnboardingStep(inferOnboardingStep(hasSelectedForum, hasBrandSetup, hasProductDetails));
                   setShowOnboardingFlow(true);
                 }}
               >
@@ -1164,26 +1156,26 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
     );
   }
 
-  if (!onboardingComplete) {
+  if (shouldShowOnboardingFlow) {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950">
         <div className="mx-auto max-w-7xl">
           <section className="space-y-6">
             <div className="text-center">
               <PostPilotLogo />
-              <p className="text-2xl font-black tracking-tight text-blue-950">Clear 5-step setup. First post generated within minutes.</p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-5">
-                {["Connect Whop", "Select forum", "Brand setup", "Generate first content", "Review schedule"].map((label, index) => (
+              <p className="text-2xl font-black tracking-tight text-blue-950">4-step setup. First post generated within minutes.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                {["Select forum", "Brand setup", "Generate first content", "Review schedule"].map((label, index) => (
                   <button
                     key={label}
                     type="button"
-                    onClick={() => setOnboardingStep((index + 1) as OnboardingStep)}
+                    onClick={() => setOnboardingStep((index + 2) as OnboardingStep)}
                     className={`rounded-2xl border px-3 py-3 text-sm font-bold transition ${
-                      onboardingStep === index + 1 ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-blue-950 hover:bg-blue-50"
+                      onboardingStep === index + 2 ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-blue-950 hover:bg-blue-50"
                     }`}
                   >
                     <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-current text-xs">
-                      <span className={onboardingStep === index + 1 ? "text-blue-600" : "text-white"}>{index + 1}</span>
+                      <span className={onboardingStep === index + 2 ? "text-blue-600" : "text-white"}>{index + 1}</span>
                     </span>
                     {label}
                   </button>
@@ -1192,37 +1184,6 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
             </div>
 
             <ToastNotice error={error} message={message} onClose={() => { setError(""); setMessage(""); }} />
-
-            {onboardingStep === 1 ? (
-              <Card className="mx-auto max-w-2xl">
-                <ProgressLabel step={1} />
-                <div className="mt-8 text-center">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-                    <Rocket className="h-7 w-7" />
-                  </div>
-                  <h2 className="mt-6 text-3xl font-black text-blue-950">Connect Whop</h2>
-                  <p className="mx-auto mt-3 max-w-md text-slate-600">Securely connect your Whop account and installed app to access your forums.</p>
-                </div>
-                {connectedWhop ? (
-                  <div className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-                    <div className="flex items-center gap-3 text-emerald-700">
-                      <CheckCircle2 className="h-5 w-5" />
-                      <span className="font-bold">Connected successfully</span>
-                    </div>
-                    <p className="mt-3 text-sm text-slate-700">Account/business: {businessName}</p>
-                    <div className="mt-5 flex gap-3">
-                      <Button onClick={() => setOnboardingStep(2)}>Continue</Button>
-                      <Button variant="secondary" onClick={disconnectWhop} disabled={busy}>Disconnect</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button className="mt-8 w-full" onClick={connectWhop} disabled={busy}>
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Connect Whop
-                  </Button>
-                )}
-              </Card>
-            ) : null}
 
             {onboardingStep === 2 ? (
               <Card>
@@ -1322,7 +1283,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <FieldLabel>Business name</FieldLabel>
-                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} placeholder="ZERO_TO_PROFITS" />
+                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} placeholder="your-whop-slug" />
                       </div>
                       <div className="space-y-2">
                         <FieldLabel>Product link</FieldLabel>
@@ -1377,7 +1338,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                   <h2 className="text-3xl font-black text-blue-950">Generate your first content</h2>
                   <p className="mt-2 text-slate-600">Create a single post or a 7-day content set for your selected Whop forum.</p>
                 </div>
-                <GeneratorPanel
+                  <GeneratorPanel
                   businessName={businessName}
                   busy={busy}
                   context={productContext}
@@ -1397,14 +1358,15 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                   setGenerateMode={setGenerateMode}
                   setPrompt={setPrompt}
                   setSelectedPostType={setSelectedPostType}
-                  setSelectedPostTypes={setSelectedPostTypes}
-                  setSingleScheduledAt={setSingleScheduledAt}
-                  onGenerateSingle={generateSingle}
-          onGenerateMultiple={(count?: number) => generateMultiple(count || 7)}
-          onPublishNow={publishNow}
-          onSchedule={(posts) => schedulePosts(posts)}
-          usage={usage}
-        />
+                    setSelectedPostTypes={setSelectedPostTypes}
+                    setSingleScheduledAt={setSingleScheduledAt}
+                    onGenerateSingle={generateSingle}
+                    onGenerateMultiple={(count?: number) => generateMultiple(count || 7)}
+                    onRegenerateDraft={regenerateDraft}
+                    onPublishNow={publishNow}
+                    onSchedule={(posts) => schedulePosts(posts)}
+                    usage={usage}
+                  />
                 <div className="mt-6 flex justify-end">
                   <Button variant="secondary" onClick={() => setOnboardingStep(5)}>
                     Review schedule
@@ -1476,6 +1438,13 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
             </div>
             <p className="truncate text-sm font-bold">{businessName}</p>
             <p className="mt-1 text-xs leading-5 text-blue-100/75">Posting on behalf of your Whop business.</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-blue-100/80">
+              <Link href="/support" className="hover:text-white">Support</Link>
+              <span>/</span>
+              <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+              <span>/</span>
+              <Link href="/legal/terms" className="hover:text-white">Terms</Link>
+            </div>
           </div>
         </aside>
 
@@ -1523,7 +1492,7 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                 title="Generate community content"
                 subtitle="Turn product context into polished Whop forum drafts your PostPilot agent can schedule or publish."
               >
-                <GeneratorPanel
+                  <GeneratorPanel
                   businessName={businessName}
                   busy={busy}
                   context={productContext}
@@ -1543,14 +1512,15 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                   setGenerateMode={setGenerateMode}
                   setPrompt={setPrompt}
                   setSelectedPostType={setSelectedPostType}
-                  setSelectedPostTypes={setSelectedPostTypes}
-                  setSingleScheduledAt={setSingleScheduledAt}
-                  onGenerateSingle={generateSingle}
-                  onGenerateMultiple={(count?: number) => generateMultiple(count || 7)}
-                  onPublishNow={publishNow}
-                  onSchedule={(posts) => schedulePosts(posts)}
-                  usage={usage}
-                />
+                    setSelectedPostTypes={setSelectedPostTypes}
+                    setSingleScheduledAt={setSingleScheduledAt}
+                    onGenerateSingle={generateSingle}
+                    onGenerateMultiple={(count?: number) => generateMultiple(count || 7)}
+                    onRegenerateDraft={regenerateDraft}
+                    onPublishNow={publishNow}
+                    onSchedule={(posts) => schedulePosts(posts)}
+                    usage={usage}
+                  />
               </PageShell>
             ) : null}
 
@@ -1591,12 +1561,13 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">1. Whop connection</p>
                     <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Connected business</h3>
                     <p className="mt-2 text-sm text-slate-600">Posts are published by your PostPilot agent on behalf of your Whop business.</p>
-                    <div className="mt-5 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
-                      <p className="text-sm font-bold text-[#0F1E46]">{connectedWhop ? businessName : "Not connected"}</p>
-                      <p className="mt-1 text-xs text-slate-500">{whopUserAuth.username || whopUserAuth.userId || "Connect Whop to load account details."}</p>
-                    </div>
-                    <div className="mt-5 flex gap-3">
-                      <Button onClick={connectWhop}>Reconnect Whop</Button>
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-bold">Connected via Whop platform</span>
+                      </div>
+                      <p className="mt-2 text-sm font-bold text-[#0F1E46]">{businessName}</p>
+                      <p className="mt-1 text-xs text-slate-500">{whopUserAuth.username || whopUserAuth.userId || ""}</p>
                     </div>
                   </Card>
                   <Card>
@@ -1679,32 +1650,23 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
                     <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">What PostPilot should understand</h3>
                     <p className="mt-2 text-sm text-slate-600">This is the full product context saved in Supabase. Use Improve with AI to make individual fields more specific.</p>
                     <div className="mt-5 grid gap-4">
-                      <ProductContextField label="Product / offer name" field="whop_products" value={productContext.whop_products || ""} onChange={setContextField} placeholder="Example: Zero to Profits, 30-Day Launch System, Creator Growth Hub" />
-                      <ProductContextField label="Tagline" field="tagline" value={productContext.tagline || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Go from product idea to your first digital product sale with a simple launch roadmap." />
-                      <ProductContextField label="What it does" field="what_it_does" value={productContext.what_it_does || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={4} placeholder="Example: Helps beginners choose a digital product, set up their offer, validate demand, launch ads, and track profitability with a ROAS calculator." />
-                      <ProductContextField label="Who it's for" field="who_its_for" value={productContext.who_its_for || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Beginners who want to sell digital products but feel stuck choosing an offer or launching ads." />
-                      <ProductContextField label="Key benefits" field="key_benefits" value={productContext.key_benefits || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={4} placeholder={"Example:\n- 30-day launch plan\n- First sale checklist\n- ROAS calculator\n- Product selection framework"} />
-                      <ProductContextField label="Buyer pain" field="buyer_pain" value={productContext.buyer_pain || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: They do not know what product to sell, how to structure the offer, or whether ads will be profitable." />
-                      <ProductContextField label="Desired outcome" field="desired_outcome" value={productContext.desired_outcome || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Launch a clear digital product offer and understand the next steps toward a first sale." />
-                      <ProductContextField label="Biggest objection" field="biggest_objection" value={productContext.biggest_objection || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: I do not have an audience, I am not technical, or I do not want to waste money testing ads." />
-                      <ProductContextField label="Proof / results" field="proof_points" value={productContext.proof_points || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={3} placeholder="Example: Only include real proof here, such as member wins, case studies, testimonials, or creator experience." />
-                      <ProductContextField label="CTA preference" field="cta_preference" value={productContext.cta_preference || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Invite readers to join the Whop, check the launch plan, or start with the checklist." />
-                      <ProductContextField label="Target keywords" field="target_keywords" value={productContext.target_keywords || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: digital product, first sale, launch plan, ROAS, checklist, ads, offer validation" />
+                      <ProductContextField label="Product / offer name" field="whop_products" value={productContext.whop_products || ""} onChange={setContextField} placeholder="Example: The Trading Blueprint, Fitness Accelerator, Content Creator Bootcamp" />
+                      <ProductContextField label="Tagline" field="tagline" value={productContext.tagline || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: The step-by-step system to help you reach your goal faster with less guesswork." />
+                      <ProductContextField label="What it does" field="what_it_does" value={productContext.what_it_does || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={4} placeholder="Example: Gives members a clear roadmap, step-by-step lessons, templates, and direct access to the community and creator." />
+                      <ProductContextField label="Who it's for" field="who_its_for" value={productContext.who_its_for || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Beginners who are motivated but overwhelmed and need a clear starting point and ongoing support." />
+                      <ProductContextField label="Key benefits" field="key_benefits" value={productContext.key_benefits || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={4} placeholder={"Example:\n- Step-by-step curriculum\n- Done-for-you templates\n- Private community access\n- Live Q&A sessions"} />
+                      <ProductContextField label="Buyer pain" field="buyer_pain" value={productContext.buyer_pain || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: They know what they want but feel stuck, lack clarity on next steps, or have tried before without results." />
+                      <ProductContextField label="Desired outcome" field="desired_outcome" value={productContext.desired_outcome || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Gain the clarity, skills, and confidence to achieve a specific outcome within a defined timeframe." />
+                      <ProductContextField label="Biggest objection" field="biggest_objection" value={productContext.biggest_objection || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: I do not have time, I have tried before and failed, or I am not sure this will work for my situation." />
+                      <ProductContextField label="Proof / results" field="proof_points" value={productContext.proof_points || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} rows={3} placeholder="Example: Only include real proof here — member wins, case studies, specific results, or your own verified experience." />
+                      <ProductContextField label="CTA preference" field="cta_preference" value={productContext.cta_preference || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: Invite readers to join the community, explore the curriculum, or book a free call." />
+                      <ProductContextField label="Target keywords" field="target_keywords" value={productContext.target_keywords || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: community, coaching, results, strategy, templates, accountability, growth" />
                       <div className="grid gap-4 sm:grid-cols-3">
                         <ProductContextField label="Price" field="price" value={productContext.price || ""} onChange={setContextField} compact placeholder="Example: $49/month" />
                         <ProductContextField label="Promo code" field="promo_code" value={productContext.promo_code || ""} onChange={setContextField} compact placeholder="Example: LAUNCH20" />
                         <ProductContextField label="Promo details" field="promo_details" value={productContext.promo_details || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} compact placeholder="Example: 20% off the first month for new members" />
                       </div>
                     </div>
-                  </Card>
-                  <Card className="border-red-100">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-red-500">6. Danger zone</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Disconnect Whop</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">Use this only if you need to reconnect the app to a different Whop account or business.</p>
-                    <Button className="mt-5" variant="danger" onClick={disconnectWhop}>
-                      <LogOut className="h-4 w-4" />
-                      Disconnect Whop
-                    </Button>
                   </Card>
                   <div className="flex justify-end lg:col-span-2">
                     <Button onClick={saveSettings} disabled={busy}>Save settings</Button>
@@ -1715,6 +1677,57 @@ export default function DashboardClient({ companyId }: { companyId: string }) {
           </div>
         </section>
       </div>
+
+      {showContextModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-8 shadow-2xl shadow-blue-200/50">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <h2 className="mt-5 text-xl font-extrabold text-[#0F1E46]">Help PostPilot write better posts</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Three fields are missing that the AI needs to generate relevant, specific content for your community.
+            </p>
+            <ul className="mt-4 space-y-2">
+              {[
+                { label: "Product / offer name", filled: Boolean(productContext.whop_products) },
+                { label: "What it does", filled: Boolean(productContext.what_it_does) },
+                { label: "Who it's for", filled: Boolean(productContext.who_its_for) },
+              ].map(({ label, filled }) => (
+                <li key={label} className="flex items-center gap-3 text-sm font-semibold">
+                  <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs ${filled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-500"}`}>
+                    {filled ? "✓" : "!"}
+                  </span>
+                  <span className={filled ? "text-slate-400 line-through" : "text-slate-800"}>{label}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-7 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  sessionStorage.setItem(`postpilot_ctx_modal_${companyId}`, "1");
+                  setShowContextModal(false);
+                  setActivePage("settings");
+                }}
+                className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+              >
+                Go to Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sessionStorage.setItem(`postpilot_ctx_modal_${companyId}`, "1");
+                  setShowContextModal(false);
+                }}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1994,9 +2007,9 @@ function UsageBanner({ usage }: { usage: UsageSummary }) {
             <a href={checkoutUrl || "#"} className="inline-flex items-center justify-center rounded-xl bg-[#2563EB] px-4 py-2.5 text-sm font-bold text-white shadow-sm">
               Upgrade to Starter — $19/month
             </a>
-        ) : available <= 0 ? (
-          <span className="text-sm font-bold text-slate-500">Need more? Contact support.</span>
-        ) : null}
+          ) : available <= 0 ? (
+          <Link href="/support" className="text-sm font-bold text-slate-500 hover:text-blue-700">Need more? Contact support.</Link>
+          ) : null}
       </div>
     </div>
   );
@@ -2049,6 +2062,7 @@ function GeneratorPanel({
   setSingleScheduledAt,
   onGenerateSingle,
   onGenerateMultiple,
+  onRegenerateDraft,
   onPublishNow,
   onSchedule,
   usage,
@@ -2056,7 +2070,7 @@ function GeneratorPanel({
   businessName: string;
   busy: boolean;
   context: ProductContext;
-  draftPosts: Array<{ title: string; content: string; scheduled_at?: string; forum_id?: string; draftId?: string | null; free_regeneration_used?: boolean }>;
+  draftPosts: DraftPost[];
   generatedContent: string;
   generatedTitle: string;
   generateMode: GenerateMode;
@@ -2066,7 +2080,7 @@ function GeneratorPanel({
   selectedPostType: string;
   selectedPostTypes: string[];
   singleScheduledAt: string;
-  setDraftPosts: (posts: Array<{ title: string; content: string; scheduled_at?: string; forum_id?: string; draftId?: string | null; free_regeneration_used?: boolean }>) => void;
+  setDraftPosts: (posts: DraftPost[]) => void;
   setGeneratedContent: (content: string) => void;
   setGeneratedTitle: (title: string) => void;
   setGenerateMode: (mode: GenerateMode) => void;
@@ -2076,6 +2090,7 @@ function GeneratorPanel({
   setSingleScheduledAt: (value: string) => void;
   onGenerateSingle: () => void;
   onGenerateMultiple: (count?: number) => void;
+  onRegenerateDraft: (index: number) => void;
   onPublishNow: (title: string, content: string) => void;
   onSchedule: (posts: Array<{ title: string; content: string; scheduled_at?: string; forum_id?: string; draftId?: string | null }>) => void;
   usage: UsageSummary;
@@ -2205,11 +2220,15 @@ function GeneratorPanel({
               </div>
               <p className="whitespace-pre-line text-sm leading-7 text-slate-700">{previewContent}</p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="secondary" disabled={!generatedContent} onClick={() => onSchedule([{ title: generatedTitle || "Community update", content: generatedContent, scheduled_at: singleScheduledAt, draftId: draftPosts[0]?.draftId || null }])}>Schedule</Button>
-              <Button disabled={!generatedContent} onClick={() => onPublishNow(generatedTitle || "Community update", generatedContent)}>Publish now</Button>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="secondary" disabled={!draftPosts[0]?.draftId || busy} onClick={() => onRegenerateDraft(0)}>
+                  <RefreshCw className="h-4 w-4" />
+                  {draftPosts[0]?.free_regeneration_used ? "Regenerate (uses 1 AI post credit)" : "Regenerate free"}
+                </Button>
+                <Button variant="secondary" disabled={!generatedContent} onClick={() => onSchedule([{ title: generatedTitle || "Community update", content: generatedContent, scheduled_at: singleScheduledAt, draftId: draftPosts[0]?.draftId || null }])}>Schedule</Button>
+                <Button disabled={!generatedContent} onClick={() => onPublishNow(generatedTitle || "Community update", generatedContent)}>Publish now</Button>
+              </div>
             </div>
-          </div>
         ) : (
           <div className="mt-5 space-y-4">
             {draftPosts.length ? (
@@ -2226,7 +2245,7 @@ function GeneratorPanel({
                         }}
                         className="w-full rounded-xl border border-transparent bg-transparent px-0 py-1 font-extrabold text-[#0F1E46] outline-none focus:border-[#DCE8FF] focus:bg-white focus:px-3"
                       />
-                      <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                         <input
                           type="datetime-local"
                           value={toDateTimeLocalValue(post.scheduled_at)}
@@ -2237,18 +2256,24 @@ function GeneratorPanel({
                           }}
                           className="rounded-full border border-[#DCE8FF] bg-white px-3 py-1 text-xs font-bold text-slate-600 outline-none"
                         />
-                        <StatusPill label={getForumName(selectedForum)} tone="blue" />
-                        <StatusPill label={post.free_regeneration_used ? "Regenerate uses 1 AI post credit" : "Free regeneration available"} tone={post.free_regeneration_used ? "amber" : "green"} />
+                          <StatusPill label={getForumName(selectedForum)} tone="blue" />
+                          <StatusPill label={post.free_regeneration_used ? "Regenerate uses 1 AI post credit" : "Free regeneration available"} tone={post.free_regeneration_used ? "amber" : "green"} />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="secondary" disabled={busy} onClick={() => onRegenerateDraft(index)} className="px-3 py-2 text-xs">
+                          <RefreshCw className="h-4 w-4" />
+                          {post.free_regeneration_used ? "Regenerate" : "Regenerate free"}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setDraftPosts(draftPosts.filter((_, itemIndex) => itemIndex !== index))}
+                          className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setDraftPosts(draftPosts.filter((_, itemIndex) => itemIndex !== index))}
-                      className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
                   <TextArea
                     value={post.content}
                     onChange={(value) => {

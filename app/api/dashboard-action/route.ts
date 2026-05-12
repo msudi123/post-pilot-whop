@@ -8,6 +8,24 @@ import { getWhopSdk } from '@/lib/whop';
 
 export const dynamic = 'force-dynamic';
 
+function getWhopForumExperienceId(forum: any) {
+  return String(
+    forum?.experience?.id ||
+    forum?.experience_id ||
+    forum?.id ||
+    ''
+  ).trim();
+}
+
+function getWhopForumName(forum: any, index: number) {
+  return (
+    String(forum?.name || '').trim() ||
+    String(forum?.title || '').trim() ||
+    String(forum?.experience?.name || '').trim() ||
+    `Forum ${index + 1}`
+  );
+}
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -28,6 +46,15 @@ function parseScheduledAt(value: unknown) {
 
 export async function POST(req: NextRequest) {
   try {
+    const skipAuth = process.env.SKIP_WHOP_AUTH === 'true' && process.env.NODE_ENV !== 'production';
+    if (!skipAuth) {
+      try {
+        await getWhopSdk().verifyUserToken(req.headers);
+      } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
     const body = await req.json();
     const action = body.action as string;
     const companyIdRaw =
@@ -72,16 +99,12 @@ export async function POST(req: NextRequest) {
 
       const rows = whopForums
         .map((forum: any, index: number) => {
-          const experienceId = String(forum?.experience?.id || '').trim();
+          const experienceId = getWhopForumExperienceId(forum);
           if (!experienceId) return null;
           return {
             company_id: companyId,
             experience_id: experienceId,
-            name:
-              String(forum?.name || '').trim() ||
-              String(forum?.title || '').trim() ||
-              String(forum?.experience?.name || '').trim() ||
-              `Forum ${index + 1}`,
+            name: getWhopForumName(forum, index),
           };
         })
         .filter(Boolean) as Array<{ company_id: string; experience_id: string; name: string }>;

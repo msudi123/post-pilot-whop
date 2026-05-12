@@ -9,6 +9,15 @@ import { getUsageSummary, resolveUsageIdentity } from '@/lib/postpilot-usage';
 
 export const dynamic = 'force-dynamic';
 
+function getWhopForumExperienceId(forum: any) {
+  return String(
+    forum?.experience?.id ||
+    forum?.experience_id ||
+    forum?.id ||
+    ''
+  ).trim();
+}
+
 type LocalForumRow = {
   id: string;
   company_id: string;
@@ -23,6 +32,8 @@ type WhopForumMeta = {
   experience_name?: string;
   is_synced_only?: boolean;
 };
+
+type WhopForumMetaEntry = [string, WhopForumMeta];
 
 const BUILTIN_TEMPLATES = [
   {
@@ -54,6 +65,14 @@ const BUILTIN_TEMPLATES = [
 
 export async function GET(req: NextRequest) {
   try {
+    const skipAuth = process.env.SKIP_WHOP_AUTH === 'true' && process.env.NODE_ENV !== 'production';
+    let verifiedUserId: string;
+    try {
+      verifiedUserId = skipAuth ? 'dev-user' : (await getWhopSdk().verifyUserToken(req.headers)).userId;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const companyIdRaw = req.nextUrl.searchParams.get('companyId');
     const companyId = companyIdRaw?.trim() || '';
 
@@ -63,30 +82,24 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    let forumsResp = await supabase
-      .from('forums')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: true });
-
-    if (forumsResp.error) {
-      throw new Error(`forums query failed: ${forumsResp.error.message}`);
-    }
+    let forumsData = await supabaseRestFetch<LocalForumRow[]>('forums', {
+      select: '*',
+      company_id: `eq.${companyId}`,
+      order: 'created_at.asc',
+    }).catch(() => []);
 
     // Safety fallback for legacy rows with casing/whitespace mismatches.
-    if ((forumsResp.data || []).length === 0) {
-      const allForumsResp = await supabase
-        .from('forums')
-        .select('*')
-        .order('created_at', { ascending: true });
-      if (!allForumsResp.error) {
-        const normalized = (allForumsResp.data || []).filter((f: any) => {
-          const rowCompany = String(f.company_id || '').trim().toLowerCase();
-          return rowCompany === companyId.toLowerCase();
-        });
-        if (normalized.length > 0) {
-          forumsResp = { ...forumsResp, data: normalized };
-        }
+    if ((forumsData || []).length === 0) {
+      const allForums = await supabaseRestFetch<LocalForumRow[]>('forums', {
+        select: '*',
+        order: 'created_at.asc',
+      }).catch(() => []);
+      const normalized = (allForums || []).filter((f: any) => {
+        const rowCompany = String(f.company_id || '').trim().toLowerCase();
+        return rowCompany === companyId.toLowerCase();
+      });
+      if (normalized.length > 0) {
+        forumsData = normalized;
       }
     }
 
@@ -98,15 +111,19 @@ export async function GET(req: NextRequest) {
       }
       whopForumMeta = new Map(
         whopForums
-          .filter((forum: any) => forum?.experience?.id)
-          .map((forum: any) => [
-            forum.experience.id,
-            {
-              who_can_post: forum.who_can_post,
-              who_can_comment: forum.who_can_comment,
-              experience_name: forum?.experience?.name || '',
-            },
-          ])
+          .map((forum: any): WhopForumMetaEntry | null => {
+            const experienceId = getWhopForumExperienceId(forum);
+            if (!experienceId) return null;
+            return [
+              experienceId,
+              {
+                who_can_post: forum.who_can_post,
+                who_can_comment: forum.who_can_comment,
+                experience_name: forum?.experience?.name || forum?.name || '',
+              },
+            ];
+          })
+          .filter((entry): entry is WhopForumMetaEntry => Boolean(entry))
       );
     } catch (discoveryErr) {
       console.warn('[dashboard-data] forum metadata warning:', getErrorMessage(discoveryErr));
@@ -180,14 +197,28 @@ export async function GET(req: NextRequest) {
 
     const productContext = await getProductContext(companyId).catch(() => null);
 
-    const postingIdentity = await getPostingIdentity(companyId).catch(() => null);
-    const usageIdentity = await resolveUsageIdentity(companyId, postingIdentity?.whop_user_id || null);
+    let postingIdentity = await getPostingIdentity(companyId).catch(() => null);
+
+    // Seed posting identity from the verified platform token if not yet stored.
+    if (!postingIdentity?.whop_user_id) {
+      try {
+        await supabase.from('posting_identity').upsert(
+          { company_id: companyId, whop_user_id: verifiedUserId, updated_at: new Date().toISOString() },
+          { onConflict: 'company_id' }
+        );
+        postingIdentity = await getPostingIdentity(companyId).catch(() => null);
+      } catch {
+        // Non-fatal: usage tracking will still work via verifiedUserId fallback.
+      }
+    }
+
+    const usageIdentity = await resolveUsageIdentity(companyId, postingIdentity?.whop_user_id || verifiedUserId);
     const usage = await getUsageSummary(usageIdentity.userId, usageIdentity.whopUserId).catch((usageErr) => {
       console.warn('[dashboard-data] usage warning:', getErrorMessage(usageErr));
       return null;
     });
 
-    const localForums = (forumsResp.data || []) as LocalForumRow[];
+    const localForums = forumsData as LocalForumRow[];
     const mergedForums = localForums
       .map((forum) => ({
         ...forum,
@@ -214,15 +245,13 @@ export async function GET(req: NextRequest) {
       postLog,
       productContext,
       usage,
-      postingIdentity: postingIdentity
-        ? {
-            connected: true,
-            name: postingIdentity.name,
-            username: postingIdentity.username,
-            whopUserId: postingIdentity.whop_user_id,
-            expiresAt: postingIdentity.expires_at,
-          }
-        : { connected: false },
+      postingIdentity: {
+        connected: true,
+        whop_user_id: postingIdentity?.whop_user_id || verifiedUserId,
+        whop_username: postingIdentity?.username || null,
+        whop_name: postingIdentity?.name || null,
+        whop_company_name: null,
+      },
     });
   } catch (err) {
     console.error('[dashboard-data]', err);
