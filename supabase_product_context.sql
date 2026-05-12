@@ -28,7 +28,7 @@ create table if not exists product_context (
   updated_at timestamptz default now()
 );
 
-alter table product_context disable row level security;
+alter table product_context enable row level security;
 
 alter table product_context add column if not exists buyer_pain text;
 alter table product_context add column if not exists desired_outcome text;

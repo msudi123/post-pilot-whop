@@ -91,7 +91,15 @@ begin
 end;
 $$;
 
-alter table postpilot_usage disable row level security;
-alter table postpilot_drafts disable row level security;
+alter table postpilot_usage enable row level security;
+alter table postpilot_drafts enable row level security;
+
+alter function public.increment_free_generation_usage(text, integer) set search_path = public;
+alter function public.increment_monthly_generation_usage(text, integer) set search_path = public;
+
+revoke all on function public.increment_free_generation_usage(text, integer) from public;
+revoke all on function public.increment_monthly_generation_usage(text, integer) from public;
+grant execute on function public.increment_free_generation_usage(text, integer) to service_role;
+grant execute on function public.increment_monthly_generation_usage(text, integer) to service_role;
 
 notify pgrst, 'reload schema';

@@ -9,7 +9,7 @@ create table if not exists scheduled_posts (
   created_at timestamptz default now()
 );
 
-alter table scheduled_posts disable row level security;
+alter table scheduled_posts enable row level security;
 
 -- Add whop_post_id if missing
 alter table scheduled_posts add column if not exists whop_post_id text;

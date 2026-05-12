@@ -11,7 +11,7 @@ create table if not exists posting_identity (
   updated_at timestamptz default now()
 );
 
-alter table posting_identity disable row level security;
+alter table posting_identity enable row level security;
 
 alter table posting_identity
   alter column refresh_token drop not null;

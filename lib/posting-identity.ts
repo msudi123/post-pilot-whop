@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from './supabase';
-import { supabaseRestFetch } from './supabase-rest';
 
 export type PostingIdentity = {
   company_id: string;
@@ -67,19 +66,19 @@ export async function savePostingIdentity(params: {
 }
 
 export async function getPostingIdentity(companyId: string) {
-  try {
-    const rows = await supabaseRestFetch<PostingIdentity[]>('posting_identity', {
-      select: '*',
-      company_id: `eq.${companyId}`,
-      limit: 1,
-    });
+  const { data, error } = await getSupabaseAdmin()
+    .from('posting_identity')
+    .select('*')
+    .eq('company_id', companyId)
+    .maybeSingle();
 
-    return rows[0] || null;
-  } catch (error) {
-    const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (error) {
+    const message = error.message.toLowerCase();
     if (message.includes('does not exist') || message.includes('schema cache')) {
       return null;
     }
-    throw error;
+    throw new Error(`posting_identity query failed: ${error.message}`);
   }
+
+  return (data as PostingIdentity | null) || null;
 }
