@@ -349,7 +349,7 @@ function normalizeContext(context?: ProductContext | null): ProductContext {
     cta_preference: context?.cta_preference || "",
     target_keywords: context?.target_keywords || "",
     posting_mode: context?.posting_mode || "approval",
-    signature_enabled_default: context?.signature_enabled_default ?? true,
+    signature_enabled_default: context?.signature_enabled_default === true ? true : false,
     signature_template: context?.signature_template || "- Posted by PostPilot for [BUSINESS_NAME]",
     default_forum_id: context?.default_forum_id || "",
     brand_voice: context?.brand_voice || "Professional",
@@ -1391,7 +1391,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                 </div>
                 <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
                   <CalendarPreview days={weekDays} postsForDay={postsForDay} />
-                  <UpcomingList posts={scheduledOnly.slice(0, 5)} emptyText="Schedule your first generated posts to fill this queue." />
+                  <UpcomingList posts={scheduledOnly.slice(0, 5)} emptyText="Schedule your first generated posts to fill this queue." companyId={companyId} />
                 </div>
                 <p className="mt-6 text-center text-sm text-slate-500">You can change these anytime in Settings.</p>
               </Card>
@@ -1543,7 +1543,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                 </div>
                 <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
                   {calendarMode === "week" ? <CalendarPreview days={weekDays} postsForDay={postsForDay} onDelete={cancelScheduledPost} /> : <MonthCalendar days={monthDays} postsForDay={postsForDay} onDelete={cancelScheduledPost} />}
-                  <UpcomingList posts={scheduledOnly.slice(0, 8)} emptyText="No scheduled posts yet." onDelete={cancelScheduledPost} />
+                  <UpcomingList posts={scheduledOnly.slice(0, 8)} emptyText="No scheduled posts yet." companyId={companyId} onDelete={cancelScheduledPost} onSaved={loadDashboardData} />
                 </div>
               </PageShell>
             ) : null}
@@ -1639,10 +1639,32 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">4. Signature</p>
                     <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Agent attribution</h3>
                     <p className="mt-2 text-sm text-slate-600">This appears inside post bodies so the PostPilot agent identity feels intentional.</p>
-                    <div className="mt-5 space-y-2">
-                      <FieldLabel>Default signature</FieldLabel>
-                      <TextInput value={productContext.signature_template || ""} onChange={(value) => setContextField("signature_template", value)} />
-                      <p className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 text-sm font-semibold text-[#0F1E46]">{resolveSignature(productContext.signature_template, businessName)}</p>
+                    <div className="mt-5 space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-bold text-blue-950">Add a signature to every post</p>
+                          <p className="mt-1 text-sm text-slate-600">Make the app-agent identity clear and intentional.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = !productContext.signature_enabled_default;
+                            setContextField("signature_enabled_default", next);
+                            await saveContext({ signature_enabled_default: next });
+                            setMessage(next ? "Signature enabled." : "Signature disabled.");
+                          }}
+                          className={`h-7 w-12 rounded-full p-1 transition ${productContext.signature_enabled_default ? "bg-blue-600" : "bg-slate-300"}`}
+                        >
+                          <span className={`block h-5 w-5 rounded-full bg-white transition ${productContext.signature_enabled_default ? "translate-x-5" : ""}`} />
+                        </button>
+                      </div>
+                      {productContext.signature_enabled_default ? (
+                        <div className="space-y-2">
+                          <FieldLabel>Default signature</FieldLabel>
+                          <TextInput value={productContext.signature_template || ""} onChange={(value) => setContextField("signature_template", value)} />
+                          <p className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 text-sm font-semibold text-[#0F1E46]">{resolveSignature(productContext.signature_template, businessName)}</p>
+                        </div>
+                      ) : null}
                     </div>
                   </Card>
                   <Card>
@@ -2319,35 +2341,37 @@ function CalendarPreview({
           <h3 className="mt-1 text-xl font-extrabold text-[#0F1E46]">Scheduled by your agent</h3>
         </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-7">
-        {days.map((day) => {
-          const posts = postsForDay(day);
-          return (
-            <div key={day.toISOString()} className="min-h-[190px] rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-3">
-              <p className="text-sm font-extrabold text-[#0F1E46]">{formatDay(day)}</p>
-              <div className="mt-3 space-y-2">
-                {posts.length ? (
-                  posts.map((post) => (
-                    <div key={post.id} className="rounded-xl bg-white p-3 text-[#0F1E46] shadow-sm ring-1 ring-[#DCE8FF]">
-                      <p className="line-clamp-2 text-xs font-bold">{post.title}</p>
-                      <p className="mt-1 text-[11px] font-semibold text-blue-600">{formatDateTime(post.scheduled_at)}</p>
-                      <StatusPill label={post.status || "scheduled"} tone="blue" />
-                      {onDelete ? (
-                        <button type="button" onClick={() => onDelete(post)} className="mt-2 block text-[11px] font-bold text-red-600 hover:underline">
-                          Delete
-                        </button>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <button type="button" className="mt-8 w-full rounded-xl border border-dashed border-[#DCE8FF] px-3 py-4 text-xs font-bold text-slate-400 transition hover:border-blue-300 hover:text-blue-600">
-                    + Add post
-                  </button>
-                )}
+      <div className="overflow-x-auto">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(140px, 1fr))", gap: "12px", minWidth: "980px" }}>
+          {days.map((day) => {
+            const posts = postsForDay(day);
+            return (
+              <div key={day.toISOString()} className="min-h-[190px] rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-3">
+                <p className="text-sm font-extrabold text-[#0F1E46]">{formatDay(day)}</p>
+                <div className="mt-3 space-y-2">
+                  {posts.length ? (
+                    posts.map((post) => (
+                      <div key={post.id} className="rounded-xl bg-white p-3 text-[#0F1E46] shadow-sm ring-1 ring-[#DCE8FF]">
+                        <p className="line-clamp-2 text-xs font-bold">{post.title || new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(post.scheduled_at))}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-blue-600">{formatDateTime(post.scheduled_at)}</p>
+                        <StatusPill label={post.status || "scheduled"} tone="blue" />
+                        {onDelete ? (
+                          <button type="button" onClick={() => onDelete(post)} className="mt-2 block text-[11px] font-bold text-red-600 hover:underline">
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <button type="button" className="mt-8 w-full rounded-xl border border-dashed border-[#DCE8FF] px-3 py-4 text-xs font-bold text-slate-400 transition hover:border-blue-300 hover:text-blue-600">
+                      + Add post
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </Card>
   );
@@ -2362,6 +2386,9 @@ function MonthCalendar({
   postsForDay: (day: Date) => ScheduledPost[];
   onDelete: (post: ScheduledPost) => void;
 }) {
+  const todayStr = toDateInputValue(new Date());
+  const currentMonth = days[15]?.getMonth();
+  const DOW_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return (
     <Card>
       <div className="mb-5">
@@ -2369,17 +2396,27 @@ function MonthCalendar({
         <h3 className="mt-1 text-xl font-extrabold text-[#0F1E46]">Content cadence</h3>
       </div>
       <div className="grid grid-cols-7 gap-2">
+        {DOW_HEADERS.map((label) => (
+          <div key={label} className="pb-1 text-center text-[11px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+        ))}
         {days.map((day) => {
           const posts = postsForDay(day);
+          const isToday = toDateInputValue(day) === todayStr;
+          const isCurrentMonth = day.getMonth() === currentMonth;
+          const extra = posts.length - 3;
           return (
-            <div key={day.toISOString()} className="min-h-28 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-3">
-              <p className="text-xs font-black text-[#0F1E46]">{day.getDate()}</p>
-              <div className="mt-2 space-y-1">
-                {posts.slice(0, 2).map((post) => (
+            <div
+              key={day.toISOString()}
+              className={`min-h-28 rounded-2xl border p-2 ${isToday ? "border-blue-500 bg-blue-50 ring-2 ring-blue-400" : isCurrentMonth ? "border-[#DCE8FF] bg-[#F8FAFF]" : "border-slate-100 bg-slate-50/50"}`}
+            >
+              <p className={`text-xs font-black ${isToday ? "text-blue-600" : isCurrentMonth ? "text-[#0F1E46]" : "text-slate-400"}`}>{day.getDate()}</p>
+              <div className="mt-1 space-y-1">
+                {posts.slice(0, 3).map((post) => (
                   <button key={post.id} type="button" onClick={() => onDelete(post)} className="block w-full rounded-lg bg-white px-2 py-1 text-left text-[11px] font-bold text-blue-700 ring-1 ring-[#DCE8FF]">
-                    {post.title}
+                    {post.title || new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(post.scheduled_at))}
                   </button>
                 ))}
+                {extra > 0 ? <p className="text-[11px] font-semibold text-slate-500">+{extra} more</p> : null}
               </div>
             </div>
           );
@@ -2389,14 +2426,113 @@ function MonthCalendar({
   );
 }
 
+function UpcomingListItem({
+  post,
+  companyId,
+  onDelete,
+  onSaved,
+}: {
+  post: ScheduledPost;
+  companyId: string;
+  onDelete?: (post: ScheduledPost) => void;
+  onSaved?: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content || "");
+  const [editScheduledAt, setEditScheduledAt] = useState(() => toDateTimeLocalValue(post.scheduled_at));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch(`/api/scheduled-posts/${encodeURIComponent(post.id)}?companyId=${encodeURIComponent(companyId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent, scheduled_at: dateTimeLocalToIso(editScheduledAt) }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Save failed");
+      setEditing(false);
+      onSaved?.();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-slate-500">{formatDateTime(post.scheduled_at)} · {post.forum_name || "Default forum"}</p>
+          <div className="mt-1">
+            <StatusPill label={post.status || "scheduled"} tone="blue" />
+          </div>
+          {!editing ? (
+            <>
+              <p className={`mt-2 text-sm text-[#0F1E46] ${expanded ? "" : "line-clamp-3"}`}>{post.content}</p>
+              {(post.content || "").length > 200 ? (
+                <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-xs font-bold text-blue-600 hover:underline">
+                  {expanded ? "Show less" : "Show more"}
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <input
+                type="datetime-local"
+                value={editScheduledAt}
+                onChange={(e) => setEditScheduledAt(e.target.value)}
+                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              {saveError ? <p className="text-xs text-red-600">{saveError}</p> : null}
+              <div className="flex gap-2">
+                <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+                <Button variant="ghost" onClick={() => { setEditing(false); setEditContent(post.content || ""); setEditScheduledAt(toDateTimeLocalValue(post.scheduled_at)); setSaveError(""); }}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </div>
+        {post.whop_post_url ? (
+          <a href={post.whop_post_url} target="_blank" rel="noreferrer" className="text-blue-600">
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        ) : null}
+      </div>
+      {!editing ? (
+        <div className="mt-3 flex gap-2">
+          <Button variant="secondary" onClick={() => setEditing(true)}>Edit</Button>
+          {onDelete ? (
+            <Button variant="danger" onClick={() => onDelete(post)}>Delete</Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function UpcomingList({
   posts,
   emptyText,
+  companyId,
   onDelete,
+  onSaved,
 }: {
   posts: ScheduledPost[];
   emptyText: string;
+  companyId: string;
   onDelete?: (post: ScheduledPost) => void;
+  onSaved?: () => void;
 }) {
   return (
     <Card>
@@ -2410,27 +2546,7 @@ function UpcomingList({
       <div className="mt-5 space-y-3">
         {posts.length ? (
           posts.map((post) => (
-            <div key={post.id} className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-extrabold text-[#0F1E46]">{post.title}</p>
-                  <p className="mt-1 text-sm text-slate-500">{formatDateTime(post.scheduled_at)} - {post.forum_name || "Default forum"}</p>
-                  <div className="mt-2">
-                    <StatusPill label={post.status || "scheduled"} tone="blue" />
-                  </div>
-                </div>
-                {post.whop_post_url ? (
-                  <a href={post.whop_post_url} target="_blank" rel="noreferrer" className="text-blue-600">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-              </div>
-              {onDelete ? (
-                <Button className="mt-3" variant="danger" onClick={() => onDelete(post)}>
-                  Delete
-                </Button>
-              ) : null}
-            </div>
+            <UpcomingListItem key={post.id} post={post} companyId={companyId} onDelete={onDelete} onSaved={onSaved} />
           ))
         ) : (
           <p className="rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-5 text-sm text-slate-600">{emptyText}</p>
