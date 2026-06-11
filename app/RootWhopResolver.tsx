@@ -71,12 +71,12 @@ export default function RootWhopResolver() {
   return (
     <div
       style={{
-        background: '#080808',
+        background: 'var(--bg)',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#F0F0F0',
+        color: 'var(--text)',
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
     >
@@ -84,7 +84,7 @@ export default function RootWhopResolver() {
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
           Opening PostPilot
         </h1>
-        <p style={{ color: '#777777', fontSize: 14, lineHeight: 1.6 }}>
+        <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6 }}>
           {message}
         </p>
       </div>

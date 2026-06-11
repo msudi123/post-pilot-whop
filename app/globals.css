@@ -6,12 +6,29 @@
   --primary: #FF5C1A;
   --accent: #F59E0B;
   --success: #22C55E;
-  --bg: #080808;
-  --surface: #111111;
-  --card: #161616;
-  --card-border: #222222;
-  --text: #F0F0F0;
-  --text-dim: #777777;
+  --bg: #f8faff;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-border: #dce8ff;
+  --text: #0b163f;
+  --text-strong: #0f1e46;
+  --text-dim: #64748b;
+  --muted-bg: #f8faff;
+  --muted-strong: #e7eefc;
+  --ring-soft: rgba(37, 99, 235, 0.14);
+}
+
+html.dark {
+  --bg: #07111f;
+  --surface: #0f172a;
+  --card: #111d30;
+  --card-border: #2b3d5e;
+  --text: #e2e8f0;
+  --text-strong: #f8fbff;
+  --text-dim: #9eb2d1;
+  --muted-bg: #162337;
+  --muted-strong: #20304b;
+  --ring-soft: rgba(96, 165, 250, 0.18);
 }
 
 *, *::before, *::after {
@@ -27,12 +44,27 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) opacity(0.4);
+html {
+  color-scheme: light;
 }
 
-input[type="date"],
-input[type="text"] {
+html.dark,
+html.dark body {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.7);
+}
+
+html.dark input[type="date"],
+html.dark input[type="text"],
+html.dark input[type="datetime-local"],
+html.dark textarea {
   color-scheme: dark;
 }
 
@@ -54,4 +86,78 @@ input[type="text"] {
 
 .toast-enter {
   animation: slideUp 0.2s ease forwards;
+}
+
+@layer utilities {
+  html.dark .bg-white {
+    background-color: var(--surface) !important;
+  }
+
+  html.dark .bg-slate-50,
+  html.dark .bg-slate-50\/50,
+  html.dark .bg-slate-50\/60,
+  html.dark .bg-slate-100,
+  html.dark .bg-blue-50,
+  html.dark .bg-blue-50\/60,
+  html.dark .bg-blue-50\/70,
+  html.dark .bg-\[\#F8FAFF\] {
+    background-color: var(--muted-bg) !important;
+  }
+
+  html.dark .border-blue-100,
+  html.dark .border-blue-200,
+  html.dark .border-slate-100,
+  html.dark .border-red-100,
+  html.dark .border-\[\#DCE8FF\] {
+    border-color: var(--card-border) !important;
+  }
+
+  html.dark .text-slate-950,
+  html.dark .text-slate-900,
+  html.dark .text-\[\#0B163F\],
+  html.dark .text-\[\#0F1E46\],
+  html.dark .text-blue-950 {
+    color: var(--text-strong) !important;
+  }
+
+  html.dark .text-slate-700,
+  html.dark .text-slate-600,
+  html.dark .text-slate-500,
+  html.dark .text-slate-400 {
+    color: var(--text-dim) !important;
+  }
+
+  html.dark .placeholder\:text-slate-400::placeholder {
+    color: #89a0c2 !important;
+  }
+
+  html.dark .focus\:border-\[\#DCE8FF\]:focus,
+  html.dark .focus\:border-blue-400:focus {
+    border-color: #60a5fa !important;
+  }
+
+  html.dark .focus\:bg-white:focus {
+    background-color: var(--surface) !important;
+  }
+
+  html.dark .focus\:ring-blue-100:focus,
+  html.dark .focus\:ring-blue-400:focus {
+    --tw-ring-color: var(--ring-soft) !important;
+  }
+
+  html.dark .ring-\[\#DCE8FF\] {
+    --tw-ring-color: var(--card-border) !important;
+  }
+
+  html.dark [class*='bg-\[radial-gradient(circle_at_top_left,#dbeafe'] {
+    background-image: radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 34%), linear-gradient(180deg, #07111f, #0b1525) !important;
+  }
+
+  html.dark input,
+  html.dark textarea,
+  html.dark select {
+    background-color: var(--surface) !important;
+    border-color: var(--card-border) !important;
+    color: var(--text) !important;
+  }
 }

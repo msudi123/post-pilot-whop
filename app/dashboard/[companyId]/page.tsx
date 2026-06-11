@@ -30,14 +30,15 @@ export default async function DashboardPage({ params }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          background: '#f8fafc',
+          background: 'var(--bg)',
+          color: 'var(--text)',
         }}
       >
         <div style={{ textAlign: 'center', padding: '48px', maxWidth: '400px' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', margin: '0 0 12px' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 12px' }}>
             Access Denied
           </h1>
-          <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.6, margin: 0 }}>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.95rem', lineHeight: 1.6, margin: 0 }}>
             Post Pilot must be opened from within the Whop platform.
           </p>
         </div>

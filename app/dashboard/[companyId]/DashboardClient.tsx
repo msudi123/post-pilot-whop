@@ -429,9 +429,9 @@ function Button({
 }) {
   const variants = {
     primary: "bg-[#2563EB] text-white shadow-sm shadow-blue-200 hover:bg-blue-700",
-    secondary: "border border-[#DCE8FF] bg-white text-blue-700 hover:bg-blue-50",
-    ghost: "text-slate-600 hover:bg-slate-100",
-    danger: "border border-red-100 bg-white text-red-600 hover:bg-red-50",
+    secondary: "border border-[#DCE8FF] bg-white text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800",
+    ghost: "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+    danger: "border border-red-100 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/30",
   };
   return (
     <button
@@ -452,11 +452,11 @@ function Card({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <section className={`rounded-[20px] border border-[#DCE8FF] bg-white p-6 shadow-[0_16px_50px_rgba(15,30,70,0.06)] ${className}`}>{children}</section>;
+  return <section className={`rounded-[20px] border border-[#DCE8FF] bg-white p-6 shadow-[0_16px_50px_rgba(15,30,70,0.06)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-none ${className}`}>{children}</section>;
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="text-sm font-semibold text-slate-700">{children}</label>;
+  return <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">{children}</label>;
 }
 
 function TextInput({
@@ -473,7 +473,7 @@ function TextInput({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+      className="w-full rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-950/60"
     />
   );
 }
@@ -495,7 +495,7 @@ function TextArea({
       rows={rows}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full resize-none rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+      className="w-full resize-none rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-950/60"
     />
   );
 }
@@ -519,7 +519,7 @@ function OptionGroup({
           className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
             value === option
               ? "border-blue-600 bg-blue-50 text-blue-700"
-              : "border-blue-100 bg-white text-slate-600 hover:bg-blue-50"
+              : "border-blue-100 bg-white text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           }`}
         >
           {option}
@@ -544,11 +544,11 @@ function MetricCard({
     <Card className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#0F1E46]">{value}</p>
-          {helper ? <p className="mt-2 text-xs font-semibold text-slate-500">{helper}</p> : null}
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#0F1E46] dark:text-slate-100">{value}</p>
+          {helper ? <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{helper}</p> : null}
         </div>
-        <div className="rounded-2xl bg-blue-50 p-3 text-[#2563EB]">
+        <div className="rounded-2xl bg-blue-50 p-3 text-[#2563EB] dark:bg-blue-950/40 dark:text-blue-200">
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -562,7 +562,7 @@ function PostPilotLogo() {
       <div className="overflow-hidden rounded-2xl shadow-lg shadow-blue-200">
         <Image src="/postpilot-logo.png" alt="PostPilot logo" width={44} height={44} className="h-11 w-11 object-cover" priority />
       </div>
-      <span className="text-xl font-black tracking-tight text-slate-950">PostPilot</span>
+      <span className="text-xl font-black tracking-tight text-slate-950 dark:text-white">PostPilot</span>
     </div>
   );
 }
@@ -1088,8 +1088,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
-        <div className="flex items-center gap-3 rounded-3xl bg-white px-6 py-4 shadow-sm">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+        <div className="flex items-center gap-3 rounded-3xl bg-white px-6 py-4 shadow-sm dark:bg-slate-900 dark:shadow-none">
           <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
           Loading PostPilot...
         </div>
@@ -1099,7 +1099,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
   if (shouldShowOnboardingLanding) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950 dark:bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.18),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] dark:text-slate-100">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[420px_1fr]">
           <aside className="space-y-8">
             <PostPilotLogo />
@@ -1158,7 +1158,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
   if (shouldShowOnboardingFlow) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_34%),linear-gradient(180deg,#ffffff,#f6f9ff)] px-6 py-8 text-slate-950 dark:bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.18),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] dark:text-slate-100">
         <div className="mx-auto max-w-7xl">
           <section className="space-y-6">
             <div className="text-center">
@@ -1403,7 +1403,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
   }
 
   return (
-    <main className="min-h-screen bg-[#F8FAFF] text-[#0B163F]">
+    <main className="min-h-screen bg-[#F8FAFF] text-[#0B163F] dark:bg-slate-950 dark:text-slate-100">
       <div className="grid min-h-screen lg:grid-cols-[248px_1fr]">
         <aside className="hidden border-r border-white/10 bg-[#0F1E46] p-5 text-white lg:flex lg:flex-col">
           <PostPilotLogoSidebar />
@@ -1450,7 +1450,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
         <section className="px-5 py-6 lg:px-10">
           <div className="mx-auto max-w-[1180px] space-y-6">
-            <header className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/70 md:flex-row md:items-center md:justify-between lg:hidden">
+            <header className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/70 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none md:flex-row md:items-center md:justify-between lg:hidden">
               <PostPilotLogo />
               <div className="flex flex-wrap gap-2">
                 {(["dashboard", "generate", "calendar", "analytics", "settings"] as AppPage[]).map((page) => (
@@ -1458,7 +1458,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                     key={page}
                     type="button"
                     onClick={() => setActivePage(page)}
-                    className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${activePage === page ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700"}`}
+                    className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${activePage === page ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"}`}
                   >
                     {page}
                   </button>
@@ -1701,13 +1701,13 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       </div>
 
       {showContextModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-8 shadow-2xl shadow-blue-200/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm dark:bg-slate-950/70">
+          <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-8 shadow-2xl shadow-blue-200/50 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
               <Sparkles className="h-5 w-5" />
             </div>
-            <h2 className="mt-5 text-xl font-extrabold text-[#0F1E46]">Help PostPilot write better posts</h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <h2 className="mt-5 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Help PostPilot write better posts</h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Three fields are missing that the AI needs to generate relevant, specific content for your community.
             </p>
             <ul className="mt-4 space-y-2">
@@ -1720,7 +1720,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs ${filled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-500"}`}>
                     {filled ? "✓" : "!"}
                   </span>
-                  <span className={filled ? "text-slate-400 line-through" : "text-slate-800"}>{label}</span>
+                  <span className={filled ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}>{label}</span>
                 </li>
               ))}
             </ul>
@@ -1742,7 +1742,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   sessionStorage.setItem(`postpilot_ctx_modal_${companyId}`, "1");
                   setShowContextModal(false);
                 }}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Later
               </button>
@@ -1757,10 +1757,10 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 function ToastNotice({ error, message, onClose }: { error: string; message: string; onClose: () => void }) {
   if (!error && !message) return null;
   return (
-    <div className={`fixed bottom-6 right-6 z-50 max-w-md rounded-2xl border px-5 py-4 text-sm font-semibold shadow-2xl ${error ? "border-red-200 bg-white text-red-700" : "border-emerald-200 bg-white text-emerald-700"}`}>
+    <div className={`fixed bottom-6 right-6 z-50 max-w-md rounded-2xl border px-5 py-4 text-sm font-semibold shadow-2xl ${error ? "border-red-200 bg-white text-red-700 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300" : "border-emerald-200 bg-white text-emerald-700 dark:border-emerald-900/60 dark:bg-slate-900 dark:text-emerald-300"}`}>
       <div className="flex items-start gap-4">
         <p className="leading-6">{error || message}</p>
-        <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-xs font-black text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+        <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-xs font-black text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200">
           X
         </button>
       </div>
@@ -1799,7 +1799,7 @@ function ProductContextField({
             type="button"
             onClick={() => onImprove(field)}
             disabled={improving}
-            className="rounded-full border border-[#DCE8FF] bg-white px-3 py-1 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
+            className="rounded-full border border-[#DCE8FF] bg-white px-3 py-1 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800"
           >
             {improving ? "Improving..." : "Improve with AI"}
           </button>
@@ -1846,8 +1846,8 @@ function PageShell({ eyebrow, title, subtitle, children }: { eyebrow?: string; t
     <div className="space-y-6">
       <div>
         {eyebrow ? <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-blue-600">{eyebrow}</p> : null}
-        <h1 className="text-3xl font-extrabold tracking-tight text-[#0F1E46]">{title}</h1>
-        <p className="mt-2 max-w-3xl text-[15px] leading-7 text-slate-500">{subtitle}</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#0F1E46] dark:text-slate-100">{title}</h1>
+        <p className="mt-2 max-w-3xl text-[15px] leading-7 text-slate-500 dark:text-slate-300">{subtitle}</p>
       </div>
       {children}
     </div>
@@ -1991,10 +1991,10 @@ function DashboardPage({
 
 function StatusPill({ label, tone = "blue" }: { label: string; tone?: "blue" | "green" | "slate" | "amber" }) {
   const tones = {
-    blue: "bg-blue-50 text-blue-700 ring-blue-100",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    slate: "bg-slate-100 text-slate-600 ring-slate-200",
-    amber: "bg-amber-50 text-amber-700 ring-amber-100",
+    blue: "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/60",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/60",
+    slate: "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/60",
   };
   return <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ring-1 ${tones[tone]}`}>{label}</span>;
 }
@@ -2013,11 +2013,11 @@ function UsageBanner({ usage }: { usage: UsageSummary }) {
       : "You've used your 7 free AI-generated posts.";
 
   return (
-    <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-extrabold text-[#0F1E46]">{text}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
+          <p className="text-sm font-extrabold text-[#0F1E46] dark:text-slate-100">{text}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
             {isStarter
               ? `Credits reset on ${formatDate(usage.monthly_usage_period_end)}.`
               : available > 0
@@ -2030,7 +2030,7 @@ function UsageBanner({ usage }: { usage: UsageSummary }) {
               Upgrade to Starter — $19/month
             </a>
           ) : available <= 0 ? (
-          <Link href="/support" className="text-sm font-bold text-slate-500 hover:text-blue-700">Need more? Contact support.</Link>
+          <Link href="/support" className="text-sm font-bold text-slate-500 hover:text-blue-700 dark:text-slate-300 dark:hover:text-blue-200">Need more? Contact support.</Link>
           ) : null}
       </div>
     </div>
@@ -2049,13 +2049,13 @@ function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <button type="button" onClick={onClick} className="flex items-center gap-4 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 text-left transition hover:border-blue-300 hover:bg-white hover:shadow-sm">
-      <span className="rounded-2xl bg-white p-3 text-[#2563EB] shadow-sm">
+    <button type="button" onClick={onClick} className="flex items-center gap-4 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 text-left transition hover:border-blue-300 hover:bg-white hover:shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-900 dark:hover:shadow-none">
+      <span className="rounded-2xl bg-white p-3 text-[#2563EB] shadow-sm dark:bg-slate-950 dark:text-blue-200 dark:shadow-none">
         <Icon className="h-5 w-5" />
       </span>
       <span>
-        <span className="block font-extrabold text-[#0F1E46]">{title}</span>
-        <span className="mt-1 block text-sm text-slate-500">{subtitle}</span>
+        <span className="block font-extrabold text-[#0F1E46] dark:text-slate-100">{title}</span>
+        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">{subtitle}</span>
       </span>
     </button>
   );
@@ -2231,16 +2231,16 @@ function GeneratorPanel({
                 type="datetime-local"
                 value={singleScheduledAt}
                 onChange={(event) => setSingleScheduledAt(event.target.value)}
-                className="w-full rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-[#DCE8FF] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-950/60"
               />
             </div>
-            <div className="rounded-3xl border border-[#DCE8FF] bg-[#F8FAFF] p-5">
+            <div className="rounded-3xl border border-[#DCE8FF] bg-[#F8FAFF] p-5 dark:border-slate-700 dark:bg-slate-900/70">
               <div className="mb-4 flex flex-wrap gap-2">
                 <StatusPill label={getForumName(selectedForum)} tone="blue" />
                 <StatusPill label={context.brand_voice || "Professional"} tone="slate" />
                 <StatusPill label={context.posting_goal || "Engagement"} tone="green" />
               </div>
-              <p className="whitespace-pre-line text-sm leading-7 text-slate-700">{previewContent}</p>
+              <p className="whitespace-pre-line text-sm leading-7 text-slate-700 dark:text-slate-200">{previewContent}</p>
             </div>
               <div className="flex flex-wrap gap-3">
                 <Button variant="secondary" disabled={!draftPosts[0]?.draftId || busy} onClick={() => onRegenerateDraft(0)}>
@@ -2255,7 +2255,7 @@ function GeneratorPanel({
           <div className="mt-5 space-y-4">
             {draftPosts.length ? (
               draftPosts.map((post, index) => (
-                <div key={`${post.title}-${index}`} className="rounded-3xl border border-[#DCE8FF] bg-[#F8FAFF] p-5">
+                <div key={`${post.title}-${index}`} className="rounded-3xl border border-[#DCE8FF] bg-[#F8FAFF] p-5 dark:border-slate-700 dark:bg-slate-900/70">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <input
@@ -2265,7 +2265,7 @@ function GeneratorPanel({
                           next[index] = { ...post, title: event.target.value };
                           setDraftPosts(next);
                         }}
-                        className="w-full rounded-xl border border-transparent bg-transparent px-0 py-1 font-extrabold text-[#0F1E46] outline-none focus:border-[#DCE8FF] focus:bg-white focus:px-3"
+                        className="w-full rounded-xl border border-transparent bg-transparent px-0 py-1 font-extrabold text-[#0F1E46] outline-none focus:border-[#DCE8FF] focus:bg-white focus:px-3 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:bg-slate-950"
                       />
                         <div className="mt-2 flex flex-wrap gap-2">
                         <input
@@ -2276,7 +2276,7 @@ function GeneratorPanel({
                             next[index] = { ...post, scheduled_at: event.target.value };
                             setDraftPosts(next);
                           }}
-                          className="rounded-full border border-[#DCE8FF] bg-white px-3 py-1 text-xs font-bold text-slate-600 outline-none"
+                          className="rounded-full border border-[#DCE8FF] bg-white px-3 py-1 text-xs font-bold text-slate-600 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
                         />
                           <StatusPill label={getForumName(selectedForum)} tone="blue" />
                           <StatusPill label={post.free_regeneration_used ? "Regenerate uses 1 AI post credit" : "Free regeneration available"} tone={post.free_regeneration_used ? "amber" : "green"} />
@@ -2290,7 +2290,7 @@ function GeneratorPanel({
                         <button
                           type="button"
                           onClick={() => setDraftPosts(draftPosts.filter((_, itemIndex) => itemIndex !== index))}
-                          className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+                          className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
                         >
                           Remove
                         </button>
@@ -2308,10 +2308,10 @@ function GeneratorPanel({
                 </div>
               ))
             ) : (
-              <div className="rounded-3xl border border-dashed border-[#DCE8FF] bg-[#F8FAFF] p-10 text-center">
+              <div className="rounded-3xl border border-dashed border-[#DCE8FF] bg-[#F8FAFF] p-10 text-center dark:border-slate-700 dark:bg-slate-900/70">
                 <Sparkles className="mx-auto h-8 w-8 text-blue-500" />
-                <p className="mt-4 font-bold text-[#0F1E46]">Your generated drafts will appear here.</p>
-                <p className="mt-2 text-sm text-slate-500">Generate one post or a 7-post week to review, approve, and schedule.</p>
+                <p className="mt-4 font-bold text-[#0F1E46] dark:text-slate-100">Your generated drafts will appear here.</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Generate one post or a 7-post week to review, approve, and schedule.</p>
               </div>
             )}
             <Button disabled={!draftPosts.length} onClick={() => onSchedule(draftPosts)}>
@@ -2465,7 +2465,7 @@ function UpcomingListItem({
   }
 
   return (
-    <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
+    <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 dark:border-slate-700 dark:bg-slate-900/70">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm text-slate-500">{formatDateTime(post.scheduled_at)} · {post.forum_name || "Default forum"}</p>
@@ -2474,7 +2474,7 @@ function UpcomingListItem({
           </div>
           {!editing ? (
             <>
-              <p className={`mt-2 text-sm text-[#0F1E46] ${expanded ? "" : "line-clamp-3"}`}>{post.content}</p>
+              <p className={`mt-2 text-sm text-[#0F1E46] dark:text-slate-100 ${expanded ? "" : "line-clamp-3"}`}>{post.content}</p>
               {(post.content || "").length > 200 ? (
                 <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-xs font-bold text-blue-600 hover:underline">
                   {expanded ? "Show less" : "Show more"}
@@ -2487,13 +2487,13 @@ function UpcomingListItem({
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={6}
-                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
               <input
                 type="datetime-local"
                 value={editScheduledAt}
                 onChange={(e) => setEditScheduledAt(e.target.value)}
-                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full rounded-xl border border-[#DCE8FF] bg-white p-3 text-sm text-[#0F1E46] outline-none focus:ring-2 focus:ring-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
               {saveError ? <p className="text-xs text-red-600">{saveError}</p> : null}
               <div className="flex gap-2">
