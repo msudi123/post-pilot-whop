@@ -35,6 +35,103 @@ type WhopForumMeta = {
 
 type WhopForumMetaEntry = [string, WhopForumMeta];
 
+type WhopBusinessSnapshot = {
+  companyName: string;
+  companyDescription: string;
+  companyAudience: string;
+  companyUrl: string;
+  productNames: string[];
+  primaryProductHeadline: string;
+  primaryProductDescription: string;
+};
+
+function compact(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+async function getWhopBusinessSnapshot(companyId: string): Promise<WhopBusinessSnapshot> {
+  const snapshot: WhopBusinessSnapshot = {
+    companyName: '',
+    companyDescription: '',
+    companyAudience: '',
+    companyUrl: '',
+    productNames: [],
+    primaryProductHeadline: '',
+    primaryProductDescription: '',
+  };
+
+  try {
+    const company = (await getWhopSdk().companies.retrieve(companyId)) as any;
+    const route = compact(company?.route);
+    snapshot.companyName = compact(company?.title);
+    snapshot.companyDescription = compact(company?.description);
+    snapshot.companyAudience = compact(company?.target_audience);
+    snapshot.companyUrl = route ? `https://whop.com/${route}` : '';
+  } catch (err) {
+    console.warn('[dashboard-data] company metadata warning:', getErrorMessage(err));
+  }
+
+  try {
+    const products = await getWhopSdk().products.list({ company_id: companyId, first: 10 });
+    for await (const product of products as any) {
+      const name = compact(product?.title);
+      const headline = compact(product?.headline);
+      const description = compact(product?.description);
+      if (name) snapshot.productNames.push(name);
+      if (!snapshot.primaryProductHeadline && headline) snapshot.primaryProductHeadline = headline;
+      if (!snapshot.primaryProductDescription && description) snapshot.primaryProductDescription = description;
+    }
+  } catch (err) {
+    console.warn('[dashboard-data] product metadata warning:', getErrorMessage(err));
+  }
+
+  return snapshot;
+}
+
+function mergeProductContextWithWhopData(
+  productContext: Awaited<ReturnType<typeof getProductContext>>,
+  snapshot: WhopBusinessSnapshot
+) {
+  if (!productContext) {
+    return {
+      whop_company: snapshot.companyName,
+      whop_products: snapshot.productNames.join(', '),
+      product_link: snapshot.companyUrl,
+      tagline: snapshot.primaryProductHeadline || snapshot.companyDescription,
+      who_its_for: snapshot.companyAudience,
+      what_it_does: snapshot.primaryProductDescription || snapshot.companyDescription,
+      key_benefits: '',
+      price: '',
+      promo_code: '',
+      promo_details: '',
+      buyer_pain: '',
+      desired_outcome: '',
+      biggest_objection: '',
+      proof_points: '',
+      cta_preference: '',
+      target_keywords: '',
+      posting_mode: 'approval',
+      signature_template: '',
+      signature_enabled_default: true,
+      default_forum_id: '',
+      brand_voice: 'Professional',
+      posting_goal: 'Engagement',
+      posting_frequency: '5 posts/week',
+      onboarding_completed: false,
+    };
+  }
+
+  return {
+    ...productContext,
+    whop_company: productContext.whop_company || snapshot.companyName,
+    whop_products: productContext.whop_products || snapshot.productNames.join(', '),
+    product_link: productContext.product_link || snapshot.companyUrl,
+    tagline: productContext.tagline || snapshot.primaryProductHeadline || snapshot.companyDescription,
+    who_its_for: productContext.who_its_for || snapshot.companyAudience,
+    what_it_does: productContext.what_it_does || snapshot.primaryProductDescription || snapshot.companyDescription,
+  };
+}
+
 const BUILTIN_TEMPLATES = [
   {
     name: 'Value Drop',
@@ -195,7 +292,9 @@ export async function GET(req: NextRequest) {
         ? finalTemplates.data
         : virtualBuiltinTemplates || [];
 
-    const productContext = await getProductContext(companyId).catch(() => null);
+    const whopBusiness = await getWhopBusinessSnapshot(companyId);
+    const storedProductContext = await getProductContext(companyId).catch(() => null);
+    const productContext = mergeProductContextWithWhopData(storedProductContext, whopBusiness);
 
     let postingIdentity = await getPostingIdentity(companyId).catch(() => null);
 
@@ -250,7 +349,7 @@ export async function GET(req: NextRequest) {
         whop_user_id: postingIdentity?.whop_user_id || verifiedUserId,
         whop_username: postingIdentity?.username || null,
         whop_name: postingIdentity?.name || null,
-        whop_company_name: null,
+        whop_company_name: whopBusiness.companyName || null,
       },
     });
   } catch (err) {

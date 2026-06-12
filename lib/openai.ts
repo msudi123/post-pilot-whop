@@ -65,12 +65,20 @@ export function getOpenAIErrorMessage(err: unknown) {
     'code' in err &&
     err.code === 'invalid_api_key'
   ) {
-    return 'OpenAI API key is invalid. Update OPENAI_API_KEY in Vercel.';
+    return 'AI writing is temporarily unavailable right now. Please try again later.';
   }
 
   if (err instanceof Error && err.message) {
-    return err.message;
+    const normalized = err.message.toLowerCase();
+    if (
+      normalized.includes('429') ||
+      normalized.includes('quota') ||
+      normalized.includes('rate limit') ||
+      normalized.includes('insufficient_quota')
+    ) {
+      return 'AI writing is temporarily unavailable right now. Please try again in a few minutes.';
+    }
   }
 
-  return 'OpenAI generation failed';
+  return 'AI writing is temporarily unavailable right now. Please try again later.';
 }

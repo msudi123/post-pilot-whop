@@ -254,9 +254,54 @@ async function postAction<T = ActionResponse>(companyId: string, body: Record<st
   });
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok || data.error) {
-    throw new Error(data.error || "Request failed");
+    throw new Error(getFriendlyErrorMessage(data.error, "We couldn't complete that action."));
   }
   return data;
+}
+
+function getFriendlyErrorMessage(error: unknown, fallback = "Something went wrong. Please try again.") {
+  const message = (error instanceof Error ? error.message : String(error || "")).trim();
+  const normalized = message.toLowerCase();
+
+  if (!message) return fallback;
+
+  if (
+    normalized.includes("429") ||
+    normalized.includes("quota") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("insufficient_quota")
+  ) {
+    return "AI writing is temporarily unavailable right now. Please try again in a few minutes.";
+  }
+
+  if (
+    normalized.includes("openai") ||
+    normalized.includes("api key") ||
+    normalized.includes("invalid_api_key")
+  ) {
+    return "AI writing is temporarily unavailable right now. Please try again later.";
+  }
+
+  if (normalized.includes("unauthorized")) {
+    return "Please reopen Post Pilot from your workspace and try again.";
+  }
+
+  if (normalized.includes("admin access is required")) {
+    return "You need admin access to manage this workspace.";
+  }
+
+  if (
+    normalized.startsWith("missing ") ||
+    normalized.startsWith("choose ") ||
+    normalized.startsWith("no ") ||
+    normalized.includes("future date") ||
+    normalized.includes("free ai-generated posts") ||
+    normalized.includes("upgrade to postpilot")
+  ) {
+    return message;
+  }
+
+  return fallback;
 }
 
 function formatDateTime(value?: string | null) {
@@ -364,11 +409,11 @@ function getForumKey(forum: Forum) {
 }
 
 function getForumName(forum?: Forum | null) {
-  return forum?.name || forum?.id || "Whop forum";
+  return forum?.name || forum?.id || "Community forum";
 }
 
 function getBusinessName(context: ProductContext, auth: WhopUserAuth) {
-  return context.whop_company || auth.businessName || auth.name || auth.username || "your Whop business";
+  return context.whop_company || auth.businessName || auth.name || auth.username || "your business";
 }
 
 function inferOnboardingStep(hasForum: boolean, hasBrand: boolean, hasContent: boolean): OnboardingStep {
@@ -380,7 +425,7 @@ function inferOnboardingStep(hasForum: boolean, hasBrand: boolean, hasContent: b
 
 function buildSeedPrompt(context: ProductContext, selectedForum?: Forum | null) {
   const parts = [
-    `Create a useful Whop forum post for ${context.whop_company || "my Whop business"}.`,
+    `Create a useful community post for ${context.whop_company || "my business"}.`,
     context.tagline ? `Positioning: ${context.tagline}.` : "",
     context.what_it_does ? `What it does: ${context.what_it_does}.` : "",
     selectedForum ? `Forum: ${getForumName(selectedForum)}.` : "",
@@ -667,7 +712,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         cache: "no-store",
       });
       const data = (await response.json()) as DashboardData & { error?: string };
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to load dashboard data");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't load your workspace."));
       if (id !== requestRef.current) return;
       const normalized = normalizeContext(data.productContext);
       if (normalized.onboarding_completed) onboardingWasAlreadyCompleteRef.current = true;
@@ -702,7 +747,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         );
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard");
+      setError(getFriendlyErrorMessage(loadError, "We couldn't load your workspace."));
     } finally {
       if (id === requestRef.current) setLoading(false);
     }
@@ -768,7 +813,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         await loadDashboardData();
       }
     } catch (pullError) {
-      setError(pullError instanceof Error ? pullError.message : "Unable to pull forums");
+      setError(getFriendlyErrorMessage(pullError, "We couldn't load your forums."));
     } finally {
       setBusy(false);
     }
@@ -790,7 +835,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       }
       setMessage("Forum removed from PostPilot.");
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete forum");
+      setError(getFriendlyErrorMessage(deleteError, "We couldn't remove that forum."));
     } finally {
       setBusy(false);
     }
@@ -820,7 +865,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       });
       const data = await response.json();
       if (data.usage) setUsage(data.usage);
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to generate post");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't generate a post right now."));
       setGeneratedTitle(data.title || `${productContext.posting_goal || "Community"} post`);
       setGeneratedContent(data.content || data.post || "");
       if (data.draft?.id) {
@@ -829,7 +874,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       setMessage("Post generated. Review it before publishing or scheduling.");
       if (data.usage) setUsage(data.usage);
     } catch (generateError) {
-      setError(generateError instanceof Error ? generateError.message : "Unable to generate post");
+      setError(getFriendlyErrorMessage(generateError, "We couldn't generate a post right now."));
     } finally {
       setBusy(false);
     }
@@ -859,7 +904,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       });
       const data = await response.json();
       if (data.usage) setUsage(data.usage);
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to generate posts");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't generate posts right now."));
       const posts = Array.isArray(data.posts) ? data.posts : Array.isArray(data.schedule) ? data.schedule : [];
       setDraftPosts(
         posts.map((post: Record<string, unknown>, index: number) => ({
@@ -876,7 +921,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       setMessage(`${posts.length || count} posts generated. Schedule included posts when ready.`);
       if (data.usage) setUsage(data.usage);
     } catch (generateError) {
-      setError(generateError instanceof Error ? generateError.message : "Unable to generate posts");
+      setError(getFriendlyErrorMessage(generateError, "We couldn't generate posts right now."));
     } finally {
       setBusy(false);
     }
@@ -909,7 +954,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       });
       const data = await response.json();
       if (data.usage) setUsage(data.usage);
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to regenerate post");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't refresh that draft right now."));
 
       const nextDraft: DraftPost = {
         ...draft,
@@ -932,7 +977,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
       setMessage(data.used_credit ? "Draft regenerated. 1 AI post credit was used." : "Draft regenerated. Your first regeneration for this draft was free.");
     } catch (regenerateError) {
-      setError(regenerateError instanceof Error ? regenerateError.message : "Unable to regenerate post");
+      setError(getFriendlyErrorMessage(regenerateError, "We couldn't refresh that draft right now."));
     } finally {
       setBusy(false);
     }
@@ -940,7 +985,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
   async function publishNow(title: string, content: string) {
     if (!selectedForumId) {
-      setError("Select a Whop forum before publishing.");
+      setError("Select a forum before publishing.");
       return;
     }
     setBusy(true);
@@ -952,11 +997,11 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         content: appendSignature(content, Boolean(productContext.signature_enabled_default), productContext.signature_template, businessName),
         forumId: selectedForumId,
       });
-      setMessage("Published by your PostPilot agent on behalf of your Whop business.");
+      setMessage("Post published successfully.");
       await loadDashboardData();
       await loadAnalytics();
     } catch (publishError) {
-      setError(publishError instanceof Error ? publishError.message : "Unable to publish post");
+      setError(getFriendlyErrorMessage(publishError, "We couldn't publish that post."));
     } finally {
       setBusy(false);
     }
@@ -964,7 +1009,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
 
   async function schedulePosts(posts: Array<{ title: string; content: string; scheduled_at?: string; forum_id?: string; draftId?: string | null }>) {
     if (!selectedForumId) {
-      setError("Select a Whop forum before scheduling.");
+      setError("Select a forum before scheduling.");
       return;
     }
     if (!posts.length) {
@@ -987,12 +1032,12 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         body: JSON.stringify({ companyId, posts: batch }),
       });
       const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to schedule posts");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't schedule those posts."));
       setMessage("Included posts were scheduled and added to the calendar.");
       setDraftPosts([]);
       await loadDashboardData();
     } catch (scheduleError) {
-      setError(scheduleError instanceof Error ? scheduleError.message : "Unable to schedule posts");
+      setError(getFriendlyErrorMessage(scheduleError, "We couldn't schedule those posts."));
     } finally {
       setBusy(false);
     }
@@ -1007,11 +1052,11 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         headers: API_HEADERS,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to delete scheduled post");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't remove that scheduled post."));
       setScheduledPosts((current) => current.filter((item) => item.id !== post.id));
       setMessage("Scheduled post removed.");
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete scheduled post");
+      setError(getFriendlyErrorMessage(deleteError, "We couldn't remove that scheduled post."));
     } finally {
       setBusy(false);
     }
@@ -1030,7 +1075,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       setActivePage("dashboard");
       setMessage("Onboarding complete. Welcome to PostPilot.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to finish onboarding");
+      setError(getFriendlyErrorMessage(saveError, "We couldn't finish setup just yet."));
     } finally {
       setBusy(false);
     }
@@ -1043,7 +1088,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
       await saveContext({ default_forum_id: selectedForumId });
       setMessage("Settings saved.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to save settings");
+      setError(getFriendlyErrorMessage(saveError, "We couldn't save your settings."));
     } finally {
       setBusy(false);
     }
@@ -1064,11 +1109,11 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
         }),
       });
       const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || "Unable to improve field");
+      if (!response.ok || data.error) throw new Error(getFriendlyErrorMessage(data.error, "We couldn't improve that field right now."));
       setContextField(field, data.value || "");
       setMessage("AI improved the product context field. Review and save settings.");
     } catch (improveError) {
-      setError(improveError instanceof Error ? improveError.message : "Unable to improve field");
+      setError(getFriendlyErrorMessage(improveError, "We couldn't improve that field right now."));
     } finally {
       setImprovingField("");
     }
@@ -1104,9 +1149,9 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
           <aside className="space-y-8">
             <PostPilotLogo />
             <div>
-              <h1 className="text-6xl font-black leading-tight tracking-tight text-blue-950">Your AI community manager for Whop</h1>
-              <p className="mt-7 text-xl leading-9 text-slate-600">
-                Generate, schedule, and publish community content for your Whop forums in minutes.
+              <h1 className="text-6xl font-black leading-tight tracking-tight text-blue-950 dark:text-blue-100">Your AI content teammate for your community</h1>
+              <p className="mt-7 text-xl leading-9 text-slate-600 dark:text-slate-300">
+                Plan, draft, and schedule creator-ready community posts in minutes.
               </p>
               <Button
                 className="mt-8 w-full py-4 text-base"
@@ -1118,17 +1163,17 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                 Start setup
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <p className="mt-5 text-base font-bold text-blue-700">Start with 7 free AI-generated posts. Then continue with Starter for $19/month.</p>
+              <p className="mt-5 text-base font-bold text-blue-700 dark:text-blue-200">Start with 7 free AI-generated posts. Upgrade any time if you want more monthly credits.</p>
             </div>
             <div className="space-y-5 pt-4">
               {[
                 { label: "AI post generation", Icon: Sparkles },
-                { label: "Whop forum scheduling", Icon: CalendarDays },
+                { label: "Forum scheduling", Icon: CalendarDays },
                 { label: "Community content calendar", Icon: FileText },
                 { label: "Simple analytics", Icon: BarChart3 },
               ].map(({ label, Icon }) => (
-                <div key={label} className="flex items-center gap-4 text-base font-semibold text-blue-950">
-                  <span className="rounded-2xl bg-blue-50 p-3 text-blue-600">
+                <div key={label} className="flex items-center gap-4 text-base font-semibold text-blue-950 dark:text-blue-100">
+                  <span className="rounded-2xl bg-blue-50 p-3 text-blue-600 dark:bg-blue-950/40 dark:text-blue-200">
                     <Icon className="h-5 w-5" />
                   </span>
                   {label}
@@ -1140,12 +1185,12 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
           <section className="hidden items-center lg:flex">
             <Card className="w-full p-10">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-600">Next</p>
-              <h2 className="mt-4 text-4xl font-black tracking-tight text-blue-950">Clear 5-step setup. First post generated within minutes.</h2>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-blue-950 dark:text-blue-100">Clear 4-step setup. First post generated within minutes.</h2>
               <div className="mt-8 grid gap-4">
-                {["Connect Whop", "Select forum", "Brand setup", "Generate first content", "Review schedule"].map((step, index) => (
-                  <div key={step} className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-slate-50 p-4">
+                {["Select forum", "Brand setup", "Generate first content", "Review schedule"].map((step, index) => (
+                  <div key={step} className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/70">
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white">{index + 1}</span>
-                    <span className="font-black text-blue-950">{step}</span>
+                    <span className="font-black text-blue-950 dark:text-blue-100">{step}</span>
                   </div>
                 ))}
               </div>
@@ -1163,7 +1208,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
           <section className="space-y-6">
             <div className="text-center">
               <PostPilotLogo />
-              <p className="text-2xl font-black tracking-tight text-blue-950">4-step setup. First post generated within minutes.</p>
+              <p className="text-2xl font-black tracking-tight text-blue-950 dark:text-blue-100">4-step setup. First post generated within minutes.</p>
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
                 {["Select forum", "Brand setup", "Generate first content", "Review schedule"].map((label, index) => (
                   <button
@@ -1171,7 +1216,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                     type="button"
                     onClick={() => setOnboardingStep((index + 2) as OnboardingStep)}
                     className={`rounded-2xl border px-3 py-3 text-sm font-bold transition ${
-                      onboardingStep === index + 2 ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-blue-950 hover:bg-blue-50"
+                      onboardingStep === index + 2 ? "border-blue-500 bg-blue-600 text-white" : "border-blue-100 bg-white text-blue-950 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800"
                     }`}
                   >
                     <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-current text-xs">
@@ -1190,8 +1235,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                 <ProgressLabel step={2} />
                 <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <h2 className="text-3xl font-black text-blue-950">Select your Whop forum</h2>
-                    <p className="mt-2 text-slate-600">Choose where your PostPilot agent will publish community content.</p>
+                    <h2 className="text-3xl font-black text-blue-950 dark:text-blue-100">Select your forum</h2>
+                    <p className="mt-2 text-slate-600 dark:text-slate-300">Choose where your posts should be published.</p>
                   </div>
                   <Button variant="secondary" onClick={pullForums} disabled={busy}>
                     <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
@@ -1209,13 +1254,13 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                             type="button"
                             onClick={() => setSelectedForumId(key)}
                             className={`w-full rounded-2xl border p-4 text-left transition ${
-                              selectedForumId === key ? "border-blue-500 bg-blue-50" : "border-blue-100 bg-white hover:bg-blue-50/70"
+                              selectedForumId === key ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-blue-100 bg-white hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <p className="font-black text-blue-950">{getForumName(forum)}</p>
-                                <p className="mt-1 line-clamp-2 text-sm text-slate-500">{forum.description || "Postable Whop forum"}</p>
+                                <p className="font-black text-blue-950 dark:text-blue-100">{getForumName(forum)}</p>
+                                <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{forum.description || "Available publishing destination"}</p>
                               </div>
                               <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
                                 {forum.member_count ? `${forum.member_count.toLocaleString()} members` : "Forum"}
@@ -1226,18 +1271,18 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                       })
                     ) : (
                       <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-8 text-center">
-                        <p className="font-bold text-blue-950">No forums loaded yet.</p>
-                        <p className="mt-2 text-sm text-slate-600">Use refresh forums after connecting Whop.</p>
+                        <p className="font-bold text-blue-950 dark:text-blue-100">No forums loaded yet.</p>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Click refresh to load the forums available in this workspace.</p>
                       </div>
                     )}
                   </div>
-                  <div className="rounded-3xl border border-blue-100 bg-slate-50 p-5">
-                    <p className="text-sm font-bold text-slate-500">Forum details</p>
-                    <h3 className="mt-4 text-2xl font-black text-blue-950">{getForumName(selectedForum)}</h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">{selectedForum?.description || "This is where scheduled PostPilot content will be published."}</p>
+                  <div className="rounded-3xl border border-blue-100 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/70">
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Forum details</p>
+                    <h3 className="mt-4 text-2xl font-black text-blue-950 dark:text-blue-100">{getForumName(selectedForum)}</h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{selectedForum?.description || "This is where your scheduled content will be published."}</p>
                     <div className="mt-5 flex flex-wrap gap-2">
                       {(selectedForum?.topics || ["Community", "Engagement", "Updates"]).slice(0, 4).map((topic) => (
-                        <span key={topic} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
+                          <span key={topic} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700 dark:bg-slate-950 dark:text-blue-200">
                           {topic}
                         </span>
                       ))}
@@ -1261,8 +1306,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
               <Card>
                 <ProgressLabel step={3} />
                 <div className="mt-6">
-                  <h2 className="text-3xl font-black text-blue-950">Set your brand voice</h2>
-                  <p className="mt-2 text-slate-600">Give PostPilot enough context to create content that sounds intentional, not generic.</p>
+                  <h2 className="text-3xl font-black text-blue-950 dark:text-blue-100">Set your brand voice</h2>
+                  <p className="mt-2 text-slate-600 dark:text-slate-300">Give PostPilot enough context to write content that sounds specific and intentional.</p>
                 </div>
                 <div className="mt-8 grid gap-8 lg:grid-cols-2">
                   <div className="space-y-6">
@@ -1283,7 +1328,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <FieldLabel>Business name</FieldLabel>
-                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} placeholder="your-whop-slug" />
+                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} placeholder="Your business name" />
                       </div>
                       <div className="space-y-2">
                         <FieldLabel>Product link</FieldLabel>
@@ -1294,11 +1339,11 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                       <FieldLabel>What does your community help members do?</FieldLabel>
                       <TextArea value={productContext.what_it_does || ""} onChange={(value) => setContextField("what_it_does", value)} rows={4} />
                     </div>
-                    <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
+                    <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5 dark:border-slate-700 dark:bg-blue-950/30">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="font-bold text-blue-950">Add a signature to every post</p>
-                          <p className="mt-1 text-sm text-slate-600">Make the app-agent identity clear and intentional.</p>
+                          <p className="font-bold text-blue-950 dark:text-blue-100">Add a signature to every post</p>
+                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Keep every post clearly branded without extra manual editing.</p>
                         </div>
                         <button
                           type="button"
@@ -1311,7 +1356,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                       <div className="mt-4 space-y-2">
                         <FieldLabel>Signature preview</FieldLabel>
                         <TextInput value={productContext.signature_template || ""} onChange={(value) => setContextField("signature_template", value)} />
-                        <p className="rounded-2xl bg-white p-4 text-sm font-semibold text-blue-950">{resolveSignature(productContext.signature_template, businessName)}</p>
+                        <p className="rounded-2xl bg-white p-4 text-sm font-semibold text-blue-950 dark:bg-slate-950 dark:text-blue-100">{resolveSignature(productContext.signature_template, businessName)}</p>
                       </div>
                     </div>
                   </div>
@@ -1335,8 +1380,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
               <Card>
                 <ProgressLabel step={4} />
                 <div className="mt-6">
-                  <h2 className="text-3xl font-black text-blue-950">Generate your first content</h2>
-                  <p className="mt-2 text-slate-600">Create a single post or a 7-day content set for your selected Whop forum.</p>
+                  <h2 className="text-3xl font-black text-blue-950 dark:text-blue-100">Generate your first content</h2>
+                  <p className="mt-2 text-slate-600 dark:text-slate-300">Create a single post or a 7-day content set for your selected forum.</p>
                 </div>
                   <GeneratorPanel
                   businessName={businessName}
@@ -1381,8 +1426,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                 <ProgressLabel step={5} />
                 <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <h2 className="text-3xl font-black text-blue-950">Review your schedule</h2>
-                    <p className="mt-2 text-slate-600">Make sure your first posts are ready for your PostPilot agent.</p>
+                    <h2 className="text-3xl font-black text-blue-950 dark:text-blue-100">Review your schedule</h2>
+                    <p className="mt-2 text-slate-600 dark:text-slate-300">Make sure your first posts are timed and ready to go live.</p>
                   </div>
                   <Button onClick={completeOnboarding} disabled={busy}>
                     Finish onboarding
@@ -1437,7 +1482,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
               Agent active
             </div>
             <p className="truncate text-sm font-bold">{businessName}</p>
-            <p className="mt-1 text-xs leading-5 text-blue-100/75">Posting on behalf of your Whop business.</p>
+            <p className="mt-1 text-xs leading-5 text-blue-100/75">Drafts, scheduling, and publishing are ready to go.</p>
             <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-blue-100/80">
               <Link href="/support" className="hover:text-white">Support</Link>
               <span>/</span>
@@ -1490,7 +1535,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
               <PageShell
                 eyebrow="Content Studio"
                 title="Generate community content"
-                subtitle="Turn product context into polished Whop forum drafts your PostPilot agent can schedule or publish."
+                subtitle="Turn your product context into polished drafts you can review, schedule, and publish."
               >
                   <GeneratorPanel
                   businessName={businessName}
@@ -1549,30 +1594,30 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
             ) : null}
 
             {activePage === "analytics" ? (
-              <PageShell eyebrow="Analytics" title="Community signal" subtitle="Honest performance tracking for content published by your PostPilot agent.">
+              <PageShell eyebrow="Analytics" title="Community signal" subtitle="Track how your published posts are performing and where engagement is building.">
                 <AnalyticsPage analytics={analytics} scheduledCount={scheduledOnly.length} />
               </PageShell>
             ) : null}
 
             {activePage === "settings" ? (
-              <PageShell eyebrow="Settings" title="Agent settings" subtitle="Keep your Whop connection, posting defaults, brand voice, and signature organized.">
+              <PageShell eyebrow="Settings" title="Workspace settings" subtitle="Keep your posting defaults, brand voice, and product context polished and ready to use.">
                 <div className="grid gap-6 lg:grid-cols-2">
                   <Card>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">1. Whop connection</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Connected business</h3>
-                    <p className="mt-2 text-sm text-slate-600">Posts are published by your PostPilot agent on behalf of your Whop business.</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">1. Workspace</p>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Business details</h3>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">We use your workspace details to keep your content consistent and ready to publish.</p>
                     <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <div className="flex items-center gap-2 text-emerald-700">
                         <CheckCircle2 className="h-4 w-4" />
-                        <span className="text-sm font-bold">Connected via Whop platform</span>
+                        <span className="text-sm font-bold">Business connected</span>
                       </div>
-                      <p className="mt-2 text-sm font-bold text-[#0F1E46]">{businessName}</p>
-                      <p className="mt-1 text-xs text-slate-500">{whopUserAuth.username || whopUserAuth.userId || ""}</p>
+                      <p className="mt-2 text-sm font-bold text-[#0F1E46] dark:text-slate-100">{businessName}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Your workspace is ready for drafting, scheduling, and publishing.</p>
                     </div>
                   </Card>
                   <Card>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">5. Billing summary</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">{usage.plan === "starter" ? "Starter plan" : "Free plan"}</h3>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">{usage.plan === "starter" ? "Starter plan" : "Free plan"}</h3>
                     <div className="mt-5 rounded-3xl border border-[#DCE8FF] bg-[#F8FAFF] p-5">
                       <p className="text-sm font-bold text-blue-700">{usage.plan === "starter" ? "Starter" : "Free"}</p>
                       <p className="mt-2 text-3xl font-extrabold text-[#0F1E46]">{usage.plan === "starter" ? "$19/month" : `${usage.free_generations_used} / ${usage.free_generation_limit}`}</p>
@@ -1595,7 +1640,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   </Card>
                   <Card>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">2. Posting defaults</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Where your agent publishes</h3>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Where posts publish</h3>
                     <div className="mt-6 grid gap-5 md:grid-cols-2">
                       <div className="space-y-2 md:col-span-2">
                         <FieldLabel>Default forum</FieldLabel>
@@ -1613,7 +1658,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                       </div>
                       <div className="space-y-2">
                         <FieldLabel>Business name</FieldLabel>
-                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} />
+                        <TextInput value={productContext.whop_company || ""} onChange={(value) => setContextField("whop_company", value)} placeholder="Your business name" />
                       </div>
                       <div className="space-y-3">
                         <FieldLabel>Posting frequency</FieldLabel>
@@ -1623,7 +1668,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   </Card>
                   <Card>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">3. Brand voice</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">How content should sound</h3>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">How content should sound</h3>
                     <div className="mt-6 grid gap-5">
                       <div className="space-y-3">
                         <FieldLabel>Brand voice</FieldLabel>
@@ -1637,8 +1682,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   </Card>
                   <Card>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">4. Signature</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">Agent attribution</h3>
-                    <p className="mt-2 text-sm text-slate-600">This appears inside post bodies so the PostPilot agent identity feels intentional.</p>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Signature</h3>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Add an optional footer to keep every post clearly branded.</p>
                     <div className="mt-5 space-y-4">
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -1669,8 +1714,8 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                   </Card>
                   <Card>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Product context</p>
-                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46]">What PostPilot should understand</h3>
-                    <p className="mt-2 text-sm text-slate-600">This is the full product context saved in Supabase. Use Improve with AI to make individual fields more specific.</p>
+                    <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Product context</h3>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">We use this information to write more specific, useful posts. Use Improve with AI if you want help sharpening a field.</p>
                     <div className="mt-5 grid gap-4">
                       <ProductContextField label="Product / offer name" field="whop_products" value={productContext.whop_products || ""} onChange={setContextField} placeholder="Example: The Trading Blueprint, Fitness Accelerator, Content Creator Bootcamp" />
                       <ProductContextField label="Tagline" field="tagline" value={productContext.tagline || ""} onChange={setContextField} onImprove={improveProductField} improvingField={improvingField} placeholder="Example: The step-by-step system to help you reach your goal faster with less guesswork." />
@@ -1718,7 +1763,7 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
               ].map(({ label, filled }) => (
                 <li key={label} className="flex items-center gap-3 text-sm font-semibold">
                   <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs ${filled ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-500"}`}>
-                    {filled ? "✓" : "!"}
+                    {filled ? "OK" : "!"}
                   </span>
                   <span className={filled ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}>{label}</span>
                 </li>
@@ -1835,7 +1880,7 @@ function PostPilotLogoSidebar() {
       </div>
       <div>
         <span className="block text-lg font-black tracking-tight">PostPilot</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-100/60">Whop agent</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-100/60">AI publishing assistant</span>
       </div>
     </div>
   );
@@ -1881,12 +1926,12 @@ function DashboardPage({
     <PageShell
       eyebrow="Command Center"
       title={`Good morning, ${businessName}`}
-      subtitle="Your PostPilot agent is keeping your Whop forum cadence visible, queued, and ready to publish."
+      subtitle="Your publishing cadence is visible, queued, and ready to go."
     >
       <UsageBanner usage={usage} />
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="rounded-2xl border border-[#DCE8FF] bg-white px-5 py-3 text-sm font-semibold text-[#0F1E46] shadow-sm">
-          Posts are published by your PostPilot agent on behalf of your Whop business.
+          Posts are published from your PostPilot workspace with your saved brand settings.
         </div>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={() => setActivePage("generate")}>Generate post</Button>
@@ -1946,7 +1991,7 @@ function DashboardPage({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Posts this week" value={postsThisWeek} helper="Queued or published" icon={CalendarDays} />
         <MetricCard label="Scheduled" value={scheduledCount} helper="Ready for your agent" icon={FileText} />
-        <MetricCard label="Published" value={publishedCount} helper="Sent to Whop" icon={CheckCircle2} />
+        <MetricCard label="Published" value={publishedCount} helper="Sent successfully" icon={CheckCircle2} />
         <MetricCard label="Comments tracked" value={analytics.comments} helper={publishedCount ? "From published posts" : "Waiting for posts"} icon={BarChart3} />
       </div>
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
@@ -2149,7 +2194,7 @@ function GeneratorPanel({
           <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Selected forum</p>
             <p className="mt-2 font-extrabold text-[#0F1E46]">{getForumName(selectedForum)}</p>
-            <p className="mt-1 text-sm text-slate-500">Whop forum scheduling by your PostPilot agent.</p>
+            <p className="mt-1 text-sm text-slate-500">Choose where new drafts should be scheduled by default.</p>
           </div>
           <div className="space-y-3">
             <FieldLabel>{generateMode === "single" ? "Post type" : "Post type mix"} <span className="text-red-500">*</span></FieldLabel>
@@ -2217,7 +2262,7 @@ function GeneratorPanel({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Draft previews</p>
             <h3 className="mt-2 text-2xl font-extrabold text-[#0F1E46]">Review before your agent publishes</h3>
-            <p className="mt-2 text-sm text-slate-600">This content will be published by your PostPilot agent on behalf of your Whop business.</p>
+            <p className="mt-2 text-sm text-slate-600">This content is what will be scheduled or published after your review.</p>
           </div>
           <StatusPill label={generateMode === "single" ? "Single draft" : "Weekly batch"} tone="blue" />
         </div>
