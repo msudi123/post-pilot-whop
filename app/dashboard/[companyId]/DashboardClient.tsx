@@ -1606,13 +1606,13 @@ export default function DashboardClient({ companyId, verifiedUserId }: { company
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">1. Workspace</p>
                     <h3 className="mt-2 text-xl font-extrabold text-[#0F1E46] dark:text-slate-100">Business details</h3>
                     <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">We use your workspace details to keep your content consistent and ready to publish.</p>
-                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <div className="flex items-center gap-2 text-emerald-700">
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                      <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                         <CheckCircle2 className="h-4 w-4" />
                         <span className="text-sm font-bold">Business connected</span>
                       </div>
                       <p className="mt-2 text-sm font-bold text-[#0F1E46] dark:text-slate-100">{businessName}</p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Your workspace is ready for drafting, scheduling, and publishing.</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Your workspace is ready for drafting, scheduling, and publishing.</p>
                     </div>
                   </Card>
                   <Card>
@@ -2174,27 +2174,43 @@ function GeneratorPanel({
           <h2 className="mt-2 text-2xl font-extrabold text-[#0F1E46]">Shape the next draft</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">Choose the angle, then let PostPilot turn your context into community content.</p>
         </div>
-        <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-[#EFF5FF] p-1">
-          <button type="button" onClick={() => setGenerateMode("single")} className={`rounded-xl px-4 py-3 text-sm font-bold transition ${generateMode === "single" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-blue-700"}`}>
+        <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-[#EFF5FF] p-1 dark:bg-slate-800/90">
+          <button
+            type="button"
+            onClick={() => setGenerateMode("single")}
+            className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+              generateMode === "single"
+                ? "bg-white text-blue-700 shadow-sm dark:bg-slate-950 dark:text-blue-200 dark:shadow-none"
+                : "text-slate-600 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-700/80 dark:hover:text-blue-200"
+            }`}
+          >
             Single post
           </button>
-          <button type="button" onClick={() => setGenerateMode("multiple")} className={`rounded-xl px-4 py-3 text-sm font-bold transition ${generateMode === "multiple" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-blue-700"}`}>
+          <button
+            type="button"
+            onClick={() => setGenerateMode("multiple")}
+            className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+              generateMode === "multiple"
+                ? "bg-white text-blue-700 shadow-sm dark:bg-slate-950 dark:text-blue-200 dark:shadow-none"
+                : "text-slate-600 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-700/80 dark:hover:text-blue-200"
+            }`}
+          >
             7-post week
           </button>
         </div>
-        <div className="mt-5 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
-          <p className="text-sm font-extrabold text-[#0F1E46]">
+        <div className="mt-5 rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 dark:border-slate-700 dark:bg-slate-800/70">
+          <p className="text-sm font-extrabold text-[#0F1E46] dark:text-slate-100">
             {usage.plan === "starter"
               ? `AI posts remaining this month: ${usage.monthly_available} / ${usage.monthly_generation_limit}`
               : `Free AI posts remaining: ${usage.free_available} / ${usage.free_generation_limit}`}
           </p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Edit, schedule, and publish generated posts without extra credits.</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">Edit, schedule, and publish generated posts without extra credits.</p>
         </div>
         <div className="mt-6 space-y-5">
-          <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Selected forum</p>
-            <p className="mt-2 font-extrabold text-[#0F1E46]">{getForumName(selectedForum)}</p>
-            <p className="mt-1 text-sm text-slate-500">Choose where new drafts should be scheduled by default.</p>
+          <div className="rounded-2xl border border-[#DCE8FF] bg-[#F8FAFF] p-4 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-300">Selected forum</p>
+            <p className="mt-2 font-extrabold text-[#0F1E46] dark:text-slate-100">{getForumName(selectedForum)}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Choose where new drafts should be scheduled by default.</p>
           </div>
           <div className="space-y-3">
             <FieldLabel>{generateMode === "single" ? "Post type" : "Post type mix"} <span className="text-red-500">*</span></FieldLabel>
@@ -2229,13 +2245,13 @@ function GeneratorPanel({
             {generateMode === "multiple" && selectedPostTypes.length > 0 ? <p className="text-xs font-semibold text-slate-500">{selectedPostTypes.length} type{selectedPostTypes.length === 1 ? "" : "s"} selected for this week.</p> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Brand voice</p>
-              <p className="mt-2 font-bold text-[#0F1E46]">{context.brand_voice || "Professional"}</p>
+            <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-300">Brand voice</p>
+              <p className="mt-2 font-bold text-[#0F1E46] dark:text-slate-100">{context.brand_voice || "Professional"}</p>
             </div>
-            <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Posting goal</p>
-              <p className="mt-2 font-bold text-[#0F1E46]">{context.posting_goal || "Engagement"}</p>
+            <div className="rounded-2xl border border-[#DCE8FF] bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-300">Posting goal</p>
+              <p className="mt-2 font-bold text-[#0F1E46] dark:text-slate-100">{context.posting_goal || "Engagement"}</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -2641,18 +2657,18 @@ function AnalyticsPage({
         <MetricCard label="Posting streak" value={postingDays.size} helper="Unique posting days" icon={BarChart3} />
       </div>
       {!enoughData ? (
-        <Card className="border-[#DCE8FF] bg-gradient-to-br from-white to-[#F8FAFF]">
+        <Card className="border-[#DCE8FF] bg-gradient-to-br from-white to-[#F8FAFF] dark:border-slate-700 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-950">
           <div className="grid gap-6 md:grid-cols-[1fr_300px] md:items-center">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Learning state</p>
-              <h2 className="mt-2 text-2xl font-extrabold text-[#0F1E46]">You are still building your data.</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
+              <h2 className="mt-2 text-2xl font-extrabold text-[#0F1E46] dark:text-slate-100">You are still building your data.</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
                 Publish at least 5 posts with tracked engagement to unlock reliable trends. Until then, PostPilot will show basic real metrics instead of fake chart movement.
               </p>
             </div>
-            <div className="rounded-3xl border border-dashed border-[#DCE8FF] bg-white p-6 text-center">
+            <div className="rounded-3xl border border-dashed border-[#DCE8FF] bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-950">
               <p className="text-4xl font-extrabold text-blue-600">{Math.min(realRows.length, 5)}/5</p>
-              <p className="mt-2 text-sm font-semibold text-slate-500">posts needed for trends</p>
+              <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-300">posts needed for trends</p>
             </div>
           </div>
         </Card>
